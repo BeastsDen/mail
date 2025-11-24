@@ -524,6 +524,44 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(emailThreads.lastMessageAt));
   }
 
+  async getEmailThreadsForUser(userId: string, leadStatus?: string): Promise<EmailThread[]> {
+    // Get all threads that have emails associated with this user
+    const userThreadIds = await db
+      .select({ threadId: sentEmails.threadId })
+      .from(sentEmails)
+      .where(eq(sentEmails.sentBy, userId))
+      .union(
+        db
+          .select({ threadId: receivedEmails.threadId })
+          .from(receivedEmails)
+          .where(eq(receivedEmails.receivedBy, userId))
+      );
+
+    if (userThreadIds.length === 0) {
+      return [];
+    }
+
+    const threadIds = userThreadIds.map(t => t.threadId).filter(Boolean) as string[];
+
+    if (threadIds.length === 0) {
+      return [];
+    }
+
+    if (leadStatus && leadStatus !== 'all') {
+      return await db
+        .select()
+        .from(emailThreads)
+        .where(and(inArray(emailThreads.id, threadIds), eq(emailThreads.leadStatus, leadStatus)))
+        .orderBy(desc(emailThreads.lastMessageAt));
+    }
+
+    return await db
+      .select()
+      .from(emailThreads)
+      .where(inArray(emailThreads.id, threadIds))
+      .orderBy(desc(emailThreads.lastMessageAt));
+  }
+
   async getEmailThread(threadId: string): Promise<EmailThread | undefined> {
     const [thread] = await db
       .select()

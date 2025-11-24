@@ -794,7 +794,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id;
       const { status } = req.query;
       
-      const threads = await storage.getEmailThreads(status as string);
+      // Get the sales user (sales@hackure.in)
+      const salesUser = await storage.getUserByEmail('sales@hackure.in');
+      
+      if (!salesUser) {
+        return res.status(404).json({ message: "Sales user not found" });
+      }
+      
+      // Only show threads related to the sales user
+      const threads = await storage.getEmailThreadsForUser(salesUser.id, status as string);
       res.json(threads);
     } catch (error) {
       console.error("Error fetching email threads:", error);
@@ -850,5 +858,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Auto-sync emails every 1 minute for sales user
+  setInterval(async () => {
+    try {
+      const salesUser = await storage.getUserByEmail('sales@hackure.in');
+      if (salesUser) {
+        // Import Outlook functions
+        const { fetchEmails } = await import("./outlookClient");
+        
+        // Fetch emails from both inbox and sent items
+        const [inboxMessages, sentMessages] = await Promise.all([
+          fetchEmails('inbox', { top: 100 }),
+          fetchEmails('sentitems', { top: 100 })
+        ]);
+
+        // Sync received emails
+        for (const message of inboxMessages) {
+          await storage.syncReceivedEmail({
+            messageId: message.id,
+            conversationId: message.conversationId,
+            senderEmail: message.from.emailAddress.address,
+            senderName: message.from.emailAddress.name || message.from.emailAddress.address,
+            subject: message.subject,
+            body: message.body.content,
+            bodyPreview: message.bodyPreview,
+            receivedBy: salesUser.id,
+            isReply: false,
+            isRead: message.isRead,
+            receivedAt: new Date(message.receivedDateTime),
+          });
+        }
+
+        // Sync sent emails
+        for (const message of sentMessages) {
+          if (message.toRecipients && message.toRecipients.length > 0) {
+            await storage.syncSentEmail({
+              messageId: message.id,
+              conversationId: message.conversationId,
+              sentBy: salesUser.id,
+              recipientEmail: message.toRecipients[0].emailAddress.address,
+              recipientName: message.toRecipients[0].emailAddress.name || message.toRecipients[0].emailAddress.address,
+              subject: message.subject,
+              body: message.body.content,
+              status: 'sent',
+              sentAt: new Date(message.receivedDateTime),
+            });
+          }
+        }
+
+        console.log(`[Auto-sync] Synced ${inboxMessages.length} inbox and ${sentMessages.length} sent emails for sales@hackure.in`);
+      }
+    } catch (error) {
+      console.error("[Auto-sync] Error syncing emails:", error);
+    }
+  }, 60 * 1000); // Run every 1 minute
+
   return httpServer;
 }
