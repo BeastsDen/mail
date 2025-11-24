@@ -591,7 +591,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid lead status" });
       }
 
-      await storage.updateEmailLeadStatus(emailId, leadStatus);
+      // Try to update as sent email first
+      const sentEmail = await storage.getSentEmail(emailId);
+      if (sentEmail) {
+        await storage.updateEmailLeadStatus(emailId, leadStatus);
+      } else {
+        // If not a sent email, try to update the thread associated with this received email
+        const receivedEmail = await storage.getReceivedEmail(emailId);
+        if (receivedEmail && receivedEmail.threadId) {
+          await storage.updateThreadStatus(receivedEmail.threadId, leadStatus);
+        }
+      }
       
       await storage.createActivityLog({
         userId,

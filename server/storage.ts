@@ -72,6 +72,7 @@ export interface IStorage {
 
   // Received email operations
   createReceivedEmail(email: InsertReceivedEmail): Promise<ReceivedEmail>;
+  getReceivedEmail(id: string): Promise<ReceivedEmail | undefined>;
   getReceivedEmailsByUser(userId: string, limit?: number, offset?: number): Promise<ReceivedEmail[]>;
   getAllReceivedEmails(limit?: number, offset?: number): Promise<ReceivedEmail[]>;
   syncReceivedEmail(email: Omit<InsertReceivedEmail, 'id'>): Promise<ReceivedEmail>;
@@ -309,6 +310,15 @@ export class DatabaseStorage implements IStorage {
   async createReceivedEmail(emailData: InsertReceivedEmail): Promise<ReceivedEmail> {
     const [email] = await db.insert(receivedEmails).values(emailData).returning();
     return email;
+  }
+
+  async getReceivedEmail(id: string): Promise<ReceivedEmail | undefined> {
+    const email = await db
+      .select()
+      .from(receivedEmails)
+      .where(eq(receivedEmails.id, id))
+      .limit(1);
+    return email[0];
   }
 
   async getReceivedEmailsByUser(userId: string, limit: number = 20, offset: number = 0): Promise<ReceivedEmail[]> {
