@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon, ChevronRight } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, ChevronRight, ChevronLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -31,9 +32,17 @@ export default function EmailThreads() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedThread, setSelectedThread] = useState<EmailThread | null>(null);
   const [threadMessages, setThreadMessages] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentTab, setCurrentTab] = useState("all");
+  const itemsPerPage = 20;
+
+  // Reset to page 1 when changing tabs
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentTab]);
 
   const { data: threads, isLoading } = useQuery<EmailThread[]>({
-    queryKey: ["/api/email-threads"],
+    queryKey: ["/api/email-threads", currentTab],
     enabled: isAuthenticated && !authLoading,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
@@ -103,18 +112,37 @@ export default function EmailThreads() {
     }
   };
 
-  const filterByLeadStatus = (status: string) => {
+  const getFilteredThreads = (status: string) => {
     if (!threads) return [];
     
     // Filter to only show threads with multiple messages (actual conversations)
     const multiMessageThreads = threads.filter((thread) => thread.messageCount > 1);
     
-    if (status === "all") return multiMessageThreads;
+    // Apply pagination on client-side for now
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const paginatedThreads = multiMessageThreads.slice(start, end);
+    
+    if (status === "all") return paginatedThreads;
     if (status === "unassigned") {
-      return multiMessageThreads.filter((thread) => !thread.leadStatus || thread.leadStatus === "");
+      return paginatedThreads.filter((thread) => !thread.leadStatus || thread.leadStatus === "");
     }
-    return multiMessageThreads.filter((thread) => thread.leadStatus === status);
+    return paginatedThreads.filter((thread) => thread.leadStatus === status);
   };
+
+  const getTotalForStatus = (status: string) => {
+    if (!threads) return 0;
+    const multiMessageThreads = threads.filter((thread) => thread.messageCount > 1);
+    
+    if (status === "all") return multiMessageThreads.length;
+    if (status === "unassigned") {
+      return multiMessageThreads.filter((thread) => !thread.leadStatus || thread.leadStatus === "").length;
+    }
+    return multiMessageThreads.filter((thread) => thread.leadStatus === status).length;
+  };
+
+  const totalForStatus = getTotalForStatus(currentTab);
+  const totalPages = Math.ceil(totalForStatus / itemsPerPage);
 
   return (
     <>
@@ -149,7 +177,7 @@ export default function EmailThreads() {
           </TabsList>
 
           {["all", "hot", "cold", "dead", "unassigned"].map((status) => (
-            <TabsContent key={status} value={status}>
+            <TabsContent key={status} value={status} onValueChange={() => setCurrentPage(1)}>
               <Card>
                 <CardHeader>
                   <CardTitle>
@@ -157,88 +185,117 @@ export default function EmailThreads() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {threads && filterByLeadStatus(status).length > 0 ? (
-                    <div className="space-y-2">
-                      {filterByLeadStatus(status).map((thread) => (
-                        <Card 
-                          key={thread.id} 
-                          className="hover-elevate cursor-pointer"
-                          onClick={() => handleOpenThread(thread)}
-                          data-testid={`card-thread-${thread.id}`}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="font-semibold truncate">{thread.subject}</h3>
-                                  {thread.unreadCount > 0 && (
-                                    <Badge variant="default" className="text-xs">
-                                      {thread.unreadCount} new
-                                    </Badge>
-                                  )}
+                  {threads && getFilteredThreads(status).length > 0 ? (
+                    <>
+                      <div className="space-y-2">
+                        {getFilteredThreads(status).map((thread) => (
+                          <Card 
+                            key={thread.id} 
+                            className="hover-elevate cursor-pointer"
+                            onClick={() => handleOpenThread(thread)}
+                            data-testid={`card-thread-${thread.id}`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="font-semibold truncate">{thread.subject}</h3>
+                                    {thread.unreadCount > 0 && (
+                                      <Badge variant="default" className="text-xs">
+                                        {thread.unreadCount} new
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <span className="truncate font-mono">
+                                      {thread.participantEmails.join(", ")}
+                                    </span>
+                                    <span>•</span>
+                                    <span>{thread.messageCount} messages</span>
+                                    <span>•</span>
+                                    <span>
+                                      {thread.lastMessageAt
+                                        ? formatDistanceToNow(new Date(thread.lastMessageAt), { addSuffix: true })
+                                        : "Unknown"}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <span className="truncate font-mono">
-                                    {thread.participantEmails.join(", ")}
-                                  </span>
-                                  <span>•</span>
-                                  <span>{thread.messageCount} messages</span>
-                                  <span>•</span>
-                                  <span>
-                                    {thread.lastMessageAt
-                                      ? formatDistanceToNow(new Date(thread.lastMessageAt), { addSuffix: true })
-                                      : "Unknown"}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <Select
-                                  value={thread.leadStatus || "unassigned"}
-                                  onValueChange={(leadStatus) =>
-                                    updateThreadStatusMutation.mutate({
-                                      threadId: thread.id,
-                                      leadStatus,
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger
-                                    className="w-36"
-                                    data-testid={`select-lead-${thread.id}`}
+                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <Select
+                                    value={thread.leadStatus || "unassigned"}
+                                    onValueChange={(leadStatus) =>
+                                      updateThreadStatusMutation.mutate({
+                                        threadId: thread.id,
+                                        leadStatus,
+                                      })
+                                    }
                                   >
-                                    <div className="flex items-center gap-2">
-                                      {getLeadIcon(thread.leadStatus || "unassigned")}
-                                      <SelectValue />
-                                    </div>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="hot">
+                                    <SelectTrigger
+                                      className="w-36"
+                                      data-testid={`select-lead-${thread.id}`}
+                                    >
                                       <div className="flex items-center gap-2">
-                                        <Flame className="h-4 w-4" />
-                                        Hot
+                                        {getLeadIcon(thread.leadStatus || "unassigned")}
+                                        <SelectValue />
                                       </div>
-                                    </SelectItem>
-                                    <SelectItem value="cold">
-                                      <div className="flex items-center gap-2">
-                                        <Snowflake className="h-4 w-4" />
-                                        Cold
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="dead">
-                                      <div className="flex items-center gap-2">
-                                        <XIcon className="h-4 w-4" />
-                                        Dead
-                                      </div>
-                                    </SelectItem>
-                                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="hot">
+                                        <div className="flex items-center gap-2">
+                                          <Flame className="h-4 w-4" />
+                                          Hot
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="cold">
+                                        <div className="flex items-center gap-2">
+                                          <Snowflake className="h-4 w-4" />
+                                          Cold
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="dead">
+                                        <div className="flex items-center gap-2">
+                                          <XIcon className="h-4 w-4" />
+                                          Dead
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                          Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalForStatus)} of {totalForStatus} threads (Page {currentPage} of {totalPages || 1})
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            data-testid="button-previous-page"
+                          >
+                            <ChevronLeft className="h-4 w-4 mr-1" />
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => p + 1)}
+                            disabled={currentPage >= totalPages}
+                            data-testid="button-next-page"
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">

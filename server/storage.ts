@@ -72,16 +72,18 @@ export interface IStorage {
 
   // Received email operations
   createReceivedEmail(email: InsertReceivedEmail): Promise<ReceivedEmail>;
-  getReceivedEmailsByUser(userId: string): Promise<ReceivedEmail[]>;
+  getReceivedEmailsByUser(userId: string, limit?: number, offset?: number): Promise<ReceivedEmail[]>;
+  getAllReceivedEmails(limit?: number, offset?: number): Promise<ReceivedEmail[]>;
   syncReceivedEmail(email: Omit<InsertReceivedEmail, 'id'>): Promise<ReceivedEmail>;
   syncSentEmail(email: Omit<InsertSentEmail, 'id'>): Promise<SentEmail>;
 
   // Email thread operations
-  getEmailThreads(leadStatus?: string): Promise<EmailThread[]>;
+  getEmailThreads(leadStatus?: string, limit?: number, offset?: number): Promise<EmailThread[]>;
   getEmailThread(threadId: string): Promise<EmailThread | undefined>;
   getThreadMessages(threadId: string): Promise<Array<SentEmail | ReceivedEmail>>;
   updateThreadStatus(threadId: string, leadStatus: string): Promise<EmailThread>;
   createOrUpdateThread(thread: Omit<InsertEmailThread, 'id'>): Promise<EmailThread>;
+  getEmailThreadsForUser(userId: string, leadStatus?: string, limit?: number, offset?: number): Promise<EmailThread[]>;
 
   // Activity log operations
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
@@ -309,12 +311,23 @@ export class DatabaseStorage implements IStorage {
     return email;
   }
 
-  async getReceivedEmailsByUser(userId: string): Promise<ReceivedEmail[]> {
+  async getReceivedEmailsByUser(userId: string, limit: number = 20, offset: number = 0): Promise<ReceivedEmail[]> {
     return await db
       .select()
       .from(receivedEmails)
       .where(eq(receivedEmails.receivedBy, userId))
-      .orderBy(desc(receivedEmails.receivedAt));
+      .orderBy(desc(receivedEmails.receivedAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getAllReceivedEmails(limit: number = 20, offset: number = 0): Promise<ReceivedEmail[]> {
+    return await db
+      .select()
+      .from(receivedEmails)
+      .orderBy(desc(receivedEmails.receivedAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   // Activity log operations
@@ -509,57 +522,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Email thread operations
-  async getEmailThreads(leadStatus?: string): Promise<EmailThread[]> {
+  async getEmailThreads(leadStatus?: string, limit: number = 20, offset: number = 0): Promise<EmailThread[]> {
     if (leadStatus && leadStatus !== 'all') {
       return await db
         .select()
         .from(emailThreads)
         .where(eq(emailThreads.leadStatus, leadStatus))
-        .orderBy(desc(emailThreads.lastMessageAt));
+        .orderBy(desc(emailThreads.lastMessageAt))
+        .limit(limit)
+        .offset(offset);
     }
     
     return await db
       .select()
       .from(emailThreads)
-      .orderBy(desc(emailThreads.lastMessageAt));
+      .orderBy(desc(emailThreads.lastMessageAt))
+      .limit(limit)
+      .offset(offset);
   }
 
-  async getEmailThreadsForUser(userId: string, leadStatus?: string): Promise<EmailThread[]> {
-    // Get all threads that have emails associated with this user
-    const userThreadIds = await db
-      .select({ threadId: sentEmails.threadId })
-      .from(sentEmails)
-      .where(eq(sentEmails.sentBy, userId))
-      .union(
-        db
-          .select({ threadId: receivedEmails.threadId })
-          .from(receivedEmails)
-          .where(eq(receivedEmails.receivedBy, userId))
-      );
-
-    if (userThreadIds.length === 0) {
-      return [];
-    }
-
-    const threadIds = userThreadIds.map(t => t.threadId).filter(Boolean) as string[];
-
-    if (threadIds.length === 0) {
-      return [];
-    }
-
+  async getEmailThreadsForUser(userId: string, leadStatus?: string, limit: number = 20, offset: number = 0): Promise<EmailThread[]> {
+    // Get all threads (not filtering by user - shared mailbox)
     if (leadStatus && leadStatus !== 'all') {
       return await db
         .select()
         .from(emailThreads)
-        .where(and(inArray(emailThreads.id, threadIds), eq(emailThreads.leadStatus, leadStatus)))
-        .orderBy(desc(emailThreads.lastMessageAt));
+        .where(eq(emailThreads.leadStatus, leadStatus))
+        .orderBy(desc(emailThreads.lastMessageAt))
+        .limit(limit)
+        .offset(offset);
     }
 
     return await db
       .select()
       .from(emailThreads)
-      .where(inArray(emailThreads.id, threadIds))
-      .orderBy(desc(emailThreads.lastMessageAt));
+      .orderBy(desc(emailThreads.lastMessageAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async getEmailThread(threadId: string): Promise<EmailThread | undefined> {

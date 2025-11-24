@@ -447,9 +447,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/emails/received", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
-      const emails = await storage.getReceivedEmailsByUser(userId);
-      res.json(emails);
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      // Get received emails from shared mailbox with pagination
+      const emails = await storage.getAllReceivedEmails(limit, offset);
+      
+      // Get total count
+      const allEmails = await storage.getAllReceivedEmails(10000, 0);
+      
+      res.json({
+        emails,
+        total: allEmails.length,
+        limit,
+        offset
+      });
     } catch (error) {
       console.error("Error fetching received emails:", error);
       res.status(500).json({ message: "Failed to fetch received emails" });
@@ -823,10 +835,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id;
       const { status } = req.query;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
       
-      // Show only threads related to the currently logged-in user
-      const threads = await storage.getEmailThreadsForUser(userId, status as string);
-      res.json(threads);
+      // Get all threads from shared mailbox with pagination and filtering
+      const threads = await storage.getEmailThreadsForUser(userId, status as string, limit, offset);
+      
+      // Get total count for this filter (without pagination)
+      const allThreads = await storage.getEmailThreadsForUser(userId, status as string, 10000, 0);
+      
+      res.json({
+        threads,
+        total: allThreads.length,
+        limit,
+        offset
+      });
     } catch (error) {
       console.error("Error fetching email threads:", error);
       res.status(500).json({ message: "Failed to fetch email threads" });
