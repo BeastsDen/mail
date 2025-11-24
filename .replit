@@ -52,3 +52,8 @@ waitForPort = 5000
 
 [agent]
 integrations = ["outlook:1.0.0", "javascript_log_in_with_replit:1.0.0", "javascript_database:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+DATABASE_URL = "postgresql://postgres:Test@1234@db.mxmbyygfkpflibqynxba.supabase.co:5432/postgres"
