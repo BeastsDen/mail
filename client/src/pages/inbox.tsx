@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Inbox as InboxIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Inbox as InboxIcon, ChevronLeft, ChevronRight, Flame, Snowflake, X as XIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -10,10 +10,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ReceivedEmail } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -23,14 +31,15 @@ export default function Inbox() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  const { data, isLoading } = useQuery<ReceivedEmail[]>({
+  const { data, isLoading } = useQuery<{ emails: ReceivedEmail[], total: number }>({
     queryKey: ["/api/emails/received"],
     enabled: isAuthenticated && !authLoading,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  const emails = data?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage) || [];
-  const totalEmails = data?.length || 0;
+  const allEmails = data?.emails || [];
+  const totalEmails = data?.total || 0;
+  const emails = allEmails.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(totalEmails / itemsPerPage);
 
   useEffect(() => {
@@ -68,6 +77,49 @@ export default function Inbox() {
     );
   };
 
+  const getLeadIcon = (leadStatus: string) => {
+    switch (leadStatus) {
+      case "hot":
+        return <Flame className="h-4 w-4 text-destructive" />;
+      case "cold":
+        return <Snowflake className="h-4 w-4 text-blue-500" />;
+      case "dead":
+        return <XIcon className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return null;
+    }
+  };
+
+  const updateEmailLeadStatusMutation = useMutation({
+    mutationFn: async ({
+      emailId,
+      leadStatus,
+    }: {
+      emailId: string;
+      leadStatus: string;
+    }) => {
+      // For received emails, we update the corresponding sent email's thread
+      // Or create a marker on the received email itself
+      return await apiRequest("PATCH", `/api/emails/${emailId}/lead-status`, {
+        leadStatus,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/emails/received"] });
+      toast({
+        title: "Success",
+        description: "Lead status updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update lead status",
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -91,6 +143,7 @@ export default function Inbox() {
                     <TableHead>Subject</TableHead>
                     <TableHead>Preview</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Lead</TableHead>
                     <TableHead>Received</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -114,6 +167,48 @@ export default function Inbox() {
                         {email.bodyPreview || "No preview"}
                       </TableCell>
                       <TableCell>{getReadBadge(email.isRead)}</TableCell>
+                      <TableCell>
+                        <Select
+                          defaultValue="unassigned"
+                          onValueChange={(leadStatus) =>
+                            updateEmailLeadStatusMutation.mutate({
+                              emailId: email.id,
+                              leadStatus,
+                            })
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-32"
+                            data-testid={`select-lead-${email.id}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              {getLeadIcon("unassigned")}
+                              <SelectValue />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hot">
+                              <div className="flex items-center gap-2">
+                                <Flame className="h-4 w-4" />
+                                Hot
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="cold">
+                              <div className="flex items-center gap-2">
+                                <Snowflake className="h-4 w-4" />
+                                Cold
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="dead">
+                              <div className="flex items-center gap-2">
+                                <XIcon className="h-4 w-4" />
+                                Dead
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
                       <TableCell className="text-sm">
                         {email.receivedAt
                           ? new Date(email.receivedAt).toLocaleString()
