@@ -117,8 +117,8 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.createdAt));
+  async getAllUsers(limit: number = 10000): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt)).limit(limit);
   }
 
   async updateUserRole(userId: string, role: string): Promise<User> {
@@ -202,8 +202,8 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(datasets.createdAt));
   }
 
-  async getAllDatasets(): Promise<Dataset[]> {
-    return await db.select().from(datasets).orderBy(desc(datasets.createdAt));
+  async getAllDatasets(limit: number = 5000): Promise<Dataset[]> {
+    return await db.select().from(datasets).orderBy(desc(datasets.createdAt)).limit(limit);
   }
 
   async deleteDataset(id: string): Promise<void> {
@@ -243,8 +243,8 @@ export class DatabaseStorage implements IStorage {
     return template || undefined;
   }
 
-  async getAllEmailTemplates(): Promise<EmailTemplate[]> {
-    return await db.select().from(emailTemplates).orderBy(desc(emailTemplates.createdAt));
+  async getAllEmailTemplates(limit: number = 5000): Promise<EmailTemplate[]> {
+    return await db.select().from(emailTemplates).orderBy(desc(emailTemplates.createdAt)).limit(limit);
   }
 
   async getEmailTemplatesByUser(userId: string): Promise<EmailTemplate[]> {
@@ -285,8 +285,8 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(sentEmails.sentAt));
   }
 
-  async getAllSentEmails(): Promise<SentEmail[]> {
-    return await db.select().from(sentEmails).orderBy(desc(sentEmails.sentAt));
+  async getAllSentEmails(limit: number = 1000): Promise<SentEmail[]> {
+    return await db.select().from(sentEmails).orderBy(desc(sentEmails.sentAt)).limit(limit);
   }
 
   async updateEmailLeadStatus(emailId: string, leadStatus: string): Promise<void> {
