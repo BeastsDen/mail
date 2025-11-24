@@ -1,0 +1,270 @@
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Mail, Flame, Snowflake, X as XIcon } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { SentEmail } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
+import { isUnauthorizedError } from "@/lib/authUtils";
+
+export default function EmailList() {
+  const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  const { data: emails, isLoading } = useQuery<SentEmail[]>({
+    queryKey: ["/api/emails"],
+    enabled: isAuthenticated && !authLoading,
+  });
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 500);
+      return;
+    }
+  }, [isAuthenticated, authLoading, toast]);
+
+  const updateLeadStatusMutation = useMutation({
+    mutationFn: async ({
+      emailId,
+      leadStatus,
+    }: {
+      emailId: string;
+      leadStatus: string;
+    }) => {
+      return await apiRequest("PATCH", `/api/emails/${emailId}/lead-status`, {
+        leadStatus,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/emails"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: "Success",
+        description: "Lead status updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update lead status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading || authLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-[500px]" />
+      </div>
+    );
+  }
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<
+      string,
+      { variant: "default" | "secondary" | "destructive"; className?: string }
+    > = {
+      sent: { variant: "secondary" },
+      delivered: { variant: "default", className: "bg-green-600 hover:bg-green-700" },
+      failed: { variant: "destructive" },
+      pending: { variant: "secondary", className: "bg-yellow-600 hover:bg-yellow-700" },
+      opened: { variant: "default", className: "bg-blue-600 hover:bg-blue-700" },
+      replied: { variant: "default", className: "bg-purple-600 hover:bg-purple-700" },
+    };
+
+    const config = variants[status] || { variant: "secondary" as const };
+
+    return (
+      <Badge variant={config.variant} className={config.className}>
+        {status?.toUpperCase()}
+      </Badge>
+    );
+  };
+
+  const getLeadIcon = (leadStatus: string) => {
+    switch (leadStatus) {
+      case "hot":
+        return <Flame className="h-4 w-4 text-destructive" />;
+      case "cold":
+        return <Snowflake className="h-4 w-4 text-blue-500" />;
+      case "dead":
+        return <XIcon className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return null;
+    }
+  };
+
+  const filterByLeadStatus = (status: string) => {
+    if (!emails) return [];
+    if (status === "all") return emails;
+    return emails.filter((email) => email.leadStatus === status);
+  };
+
+  return (
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Emails</h1>
+        <p className="text-muted-foreground">
+          View and manage sent emails and lead categorization
+        </p>
+      </div>
+
+      <Tabs defaultValue="all" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="all" data-testid="tab-all">
+            All Emails
+          </TabsTrigger>
+          <TabsTrigger value="hot" data-testid="tab-hot">
+            <Flame className="mr-1 h-4 w-4" />
+            Hot Leads
+          </TabsTrigger>
+          <TabsTrigger value="cold" data-testid="tab-cold">
+            <Snowflake className="mr-1 h-4 w-4" />
+            Cold Leads
+          </TabsTrigger>
+          <TabsTrigger value="dead" data-testid="tab-dead">
+            <XIcon className="mr-1 h-4 w-4" />
+            Dead Leads
+          </TabsTrigger>
+        </TabsList>
+
+        {["all", "hot", "cold", "dead"].map((status) => (
+          <TabsContent key={status} value={status}>
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {status === "all" ? "All Emails" : `${status.charAt(0).toUpperCase() + status.slice(1)} Leads`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {emails && filterByLeadStatus(status).length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Recipient</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Lead Status</TableHead>
+                        <TableHead>Sent</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filterByLeadStatus(status).map((email) => (
+                        <TableRow key={email.id} data-testid={`row-email-${email.id}`}>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">
+                                {email.recipientName || "Unknown"}
+                              </p>
+                              <p className="text-xs font-mono text-muted-foreground">
+                                {email.recipientEmail}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-md truncate">
+                            {email.subject}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(email.status || "sent")}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {getLeadIcon(email.leadStatus || "unassigned")}
+                              <span className="text-sm capitalize">
+                                {email.leadStatus || "unassigned"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {email.sentAt
+                              ? new Date(email.sentAt).toLocaleString()
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Select
+                              value={email.leadStatus || "unassigned"}
+                              onValueChange={(leadStatus) =>
+                                updateLeadStatusMutation.mutate({
+                                  emailId: email.id,
+                                  leadStatus,
+                                })
+                              }
+                            >
+                              <SelectTrigger
+                                className="w-32"
+                                data-testid={`select-lead-${email.id}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="hot">🔥 Hot</SelectItem>
+                                <SelectItem value="cold">❄️ Cold</SelectItem>
+                                <SelectItem value="dead">✕ Dead</SelectItem>
+                                <SelectItem value="unassigned">— Unassigned</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                      <Mail className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="mb-2 text-sm font-medium">No emails found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {status === "all"
+                        ? "Start by sending your first email campaign"
+                        : `No ${status} leads at the moment`}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
