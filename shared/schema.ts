@@ -137,6 +137,7 @@ export const sentEmails = pgTable("sent_emails", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   messageId: varchar("message_id", { length: 500 }).unique(), // Outlook message ID
   conversationId: varchar("conversation_id", { length: 500 }), // Thread ID
+  threadId: varchar("thread_id").references(() => emailThreads.id, { onDelete: 'cascade' }),
   sentBy: varchar("sent_by").notNull().references(() => users.id, { onDelete: 'cascade' }),
   recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
   recipientName: varchar("recipient_name", { length: 255 }),
@@ -154,7 +155,10 @@ export const sentEmails = pgTable("sent_emails", {
   sentAt: timestamp("sent_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_sent_conversation").on(table.conversationId),
+  index("idx_sent_thread").on(table.threadId),
+]);
 
 export const insertSentEmailSchema = createInsertSchema(sentEmails).omit({
   id: true,
@@ -165,21 +169,53 @@ export const insertSentEmailSchema = createInsertSchema(sentEmails).omit({
 export type InsertSentEmail = z.infer<typeof insertSentEmailSchema>;
 export type SentEmail = typeof sentEmails.$inferSelect;
 
+// Email threads - groups conversations together
+export const emailThreads = pgTable("email_threads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id", { length: 500 }).unique().notNull(), // Outlook conversation ID
+  subject: text("subject").notNull(),
+  participantEmails: text("participant_emails").array().notNull(), // All emails involved in thread
+  leadStatus: varchar("lead_status", { length: 50 }).notNull().default('unassigned'), // hot, cold, dead, unassigned
+  lastMessageAt: timestamp("last_message_at").notNull(),
+  messageCount: integer("message_count").notNull().default(0),
+  unreadCount: integer("unread_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_thread_last_message").on(table.lastMessageAt),
+  index("idx_thread_lead_status").on(table.leadStatus),
+]);
+
+export const insertEmailThreadSchema = createInsertSchema(emailThreads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEmailThread = z.infer<typeof insertEmailThreadSchema>;
+export type EmailThread = typeof emailThreads.$inferSelect;
+
 // Received emails tracking
 export const receivedEmails = pgTable("received_emails", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   messageId: varchar("message_id", { length: 500 }).unique(), // Outlook message ID
   conversationId: varchar("conversation_id", { length: 500 }), // Thread ID
+  threadId: varchar("thread_id").references(() => emailThreads.id, { onDelete: 'cascade' }),
   senderEmail: varchar("sender_email", { length: 255 }).notNull(),
   senderName: varchar("sender_name", { length: 255 }),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
+  bodyPreview: text("body_preview"), // First 200 chars for list view
   receivedBy: varchar("received_by").notNull().references(() => users.id, { onDelete: 'cascade' }),
   isReply: boolean("is_reply").notNull().default(false),
+  isRead: boolean("is_read").notNull().default(false),
   originalEmailId: varchar("original_email_id").references(() => sentEmails.id, { onDelete: 'set null' }),
   receivedAt: timestamp("received_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_received_conversation").on(table.conversationId),
+  index("idx_received_thread").on(table.threadId),
+]);
 
 export const insertReceivedEmailSchema = createInsertSchema(receivedEmails).omit({
   id: true,
@@ -242,10 +278,19 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ one, many })
   sentEmails: many(sentEmails),
 }));
 
+export const emailThreadsRelations = relations(emailThreads, ({ many }) => ({
+  sentEmails: many(sentEmails),
+  receivedEmails: many(receivedEmails),
+}));
+
 export const sentEmailsRelations = relations(sentEmails, ({ one, many }) => ({
   sentByUser: one(users, {
     fields: [sentEmails.sentBy],
     references: [users.id],
+  }),
+  thread: one(emailThreads, {
+    fields: [sentEmails.threadId],
+    references: [emailThreads.id],
   }),
   template: one(emailTemplates, {
     fields: [sentEmails.templateId],
@@ -266,6 +311,10 @@ export const receivedEmailsRelations = relations(receivedEmails, ({ one }) => ({
   receivedByUser: one(users, {
     fields: [receivedEmails.receivedBy],
     references: [users.id],
+  }),
+  thread: one(emailThreads, {
+    fields: [receivedEmails.threadId],
+    references: [emailThreads.id],
   }),
   originalEmail: one(sentEmails, {
     fields: [receivedEmails.originalEmailId],

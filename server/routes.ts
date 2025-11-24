@@ -730,6 +730,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Email sync and thread management routes
+  app.post("/api/emails/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      
+      // Import Outlook functions
+      const { fetchEmails } = await import("./outlookClient");
+      
+      // Fetch emails from both inbox and sent items
+      const [inboxMessages, sentMessages] = await Promise.all([
+        fetchEmails('inbox', { top: 100 }),
+        fetchEmails('sentitems', { top: 100 })
+      ]);
+
+      // Sync received emails
+      for (const message of inboxMessages) {
+        await storage.syncReceivedEmail({
+          messageId: message.id,
+          conversationId: message.conversationId,
+          senderEmail: message.from.emailAddress.address,
+          senderName: message.from.emailAddress.name || message.from.emailAddress.address,
+          subject: message.subject,
+          body: message.body.content,
+          bodyPreview: message.bodyPreview,
+          receivedBy: userId,
+          isReply: false,
+          isRead: message.isRead,
+          receivedAt: new Date(message.receivedDateTime),
+        });
+      }
+
+      // Sync sent emails
+      for (const message of sentMessages) {
+        if (message.toRecipients && message.toRecipients.length > 0) {
+          await storage.syncSentEmail({
+            messageId: message.id,
+            conversationId: message.conversationId,
+            sentBy: userId,
+            recipientEmail: message.toRecipients[0].emailAddress.address,
+            recipientName: message.toRecipients[0].emailAddress.name || message.toRecipients[0].emailAddress.address,
+            subject: message.subject,
+            body: message.body.content,
+            status: 'sent',
+            sentAt: new Date(message.receivedDateTime),
+          });
+        }
+      }
+
+      res.json({ 
+        message: "Emails synced successfully",
+        inboxCount: inboxMessages.length,
+        sentCount: sentMessages.length
+      });
+    } catch (error) {
+      console.error("Error syncing emails:", error);
+      res.status(500).json({ message: "Failed to sync emails" });
+    }
+  });
+
+  app.get("/api/email-threads", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { status } = req.query;
+      
+      const threads = await storage.getEmailThreads(status as string);
+      res.json(threads);
+    } catch (error) {
+      console.error("Error fetching email threads:", error);
+      res.status(500).json({ message: "Failed to fetch email threads" });
+    }
+  });
+
+  app.get("/api/email-threads/:threadId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { threadId } = req.params;
+      
+      const thread = await storage.getEmailThread(threadId);
+      if (!thread) {
+        return res.status(404).json({ message: "Thread not found" });
+      }
+
+      const messages = await storage.getThreadMessages(threadId);
+      
+      res.json({
+        thread,
+        messages
+      });
+    } catch (error) {
+      console.error("Error fetching thread:", error);
+      res.status(500).json({ message: "Failed to fetch thread" });
+    }
+  });
+
+  app.patch("/api/email-threads/:threadId/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const { threadId } = req.params;
+      const { leadStatus } = req.body;
+
+      if (!['hot', 'cold', 'dead', 'unassigned'].includes(leadStatus)) {
+        return res.status(400).json({ message: "Invalid lead status" });
+      }
+
+      const updatedThread = await storage.updateThreadStatus(threadId, leadStatus);
+      
+      await storage.createActivityLog({
+        userId: req.user.id,
+        action: "thread_status_updated",
+        entityType: "email_thread",
+        entityId: threadId,
+        details: { leadStatus },
+      });
+
+      res.json(updatedThread);
+    } catch (error) {
+      console.error("Error updating thread status:", error);
+      res.status(500).json({ message: "Failed to update thread status" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
