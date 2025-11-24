@@ -12,7 +12,7 @@ export default function Landing() {
             <span className="text-xl font-semibold">Email Manager</span>
           </div>
           <Button asChild data-testid="button-login">
-            <a href="/api/login">Log In</a>
+            <a href="/">Log In</a>
           </Button>
         </div>
       </header>
@@ -28,7 +28,7 @@ export default function Landing() {
               analytics and role-based workflows.
             </p>
             <Button size="lg" asChild data-testid="button-get-started">
-              <a href="/api/login">Get Started</a>
+              <a href="/">Get Started</a>
             </Button>
           </div>
         </section>
