@@ -37,6 +37,9 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique().notNull(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 255 }),
+  lastName: varchar("last_name", { length: 255 }),
+  profileImageUrl: varchar("profile_image_url", { length: 500 }),
   role: varchar("role", { length: 20 }).notNull().default('sales'), // 'admin' or 'sales'
   isBlocked: boolean("is_blocked").notNull().default(false),
   blockedUntil: timestamp("blocked_until"),
