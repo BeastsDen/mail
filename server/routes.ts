@@ -871,47 +871,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Auto-sync emails every 1 minute for the Outlook-connected user
+  // Auto-sync emails every 1 minute for sales@hackure.in mailbox
   setInterval(async () => {
     try {
       const { fetchEmails } = await import("./outlookClient");
-      const { Client } = await import("@microsoft/microsoft-graph-client");
       
-      // Get the authenticated user's email from Outlook
-      let connectedUserEmail: string | null = null;
-      try {
-        const client = await getOutlookClient();
-        const me = await client.api('/me').get();
-        connectedUserEmail = me.userPrincipalName || me.mail;
-      } catch (err) {
-        console.log("[Auto-sync] Could not fetch Outlook user info");
-        return;
-      }
-
-      if (!connectedUserEmail) {
-        console.log("[Auto-sync] No connected Outlook user found");
-        return;
-      }
-
-      // Find the user in our database that matches the Outlook account
-      const outlookUser = await storage.getUserByEmail(connectedUserEmail);
+      // Use CONFIG_EMAIL (sales@hackure.in) directly since we're using application permissions
+      const configEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
+      
+      // Find the user in our database that matches the configured email
+      const outlookUser = await storage.getUserByEmail(configEmail);
       if (!outlookUser) {
-        console.log(`[Auto-sync] No database user found for ${connectedUserEmail}`);
+        console.log(`[Auto-sync] No database user found for ${configEmail}`);
         return;
       }
 
-      // Fetch emails from admin mailbox and filter for configured email
+      console.log(`[Auto-sync] Starting sync for ${configEmail} (user ID: ${outlookUser.id})`);
+
+      // Fetch emails from sales mailbox
       const [inboxMessages, sentMessages] = await Promise.all([
         fetchEmails('inbox', { top: 100 }),
         fetchEmails('sentitems', { top: 100 })
       ]);
 
-      // Filter to only emails from/to configured email
-      const filteredInboxMessages = inboxMessages.filter(isConfiguredEmail);
-      const filteredSentMessages = sentMessages.filter(isConfiguredEmail);
+      console.log(`[Auto-sync] Fetched ${inboxMessages.length} inbox messages and ${sentMessages.length} sent messages`);
 
       // Sync received emails
-      for (const message of filteredInboxMessages) {
+      for (const message of inboxMessages) {
         await storage.syncReceivedEmail({
           messageId: message.id,
           conversationId: message.conversationId,
@@ -928,7 +914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Sync sent emails
-      for (const message of filteredSentMessages) {
+      for (const message of sentMessages) {
         if (message.toRecipients && message.toRecipients.length > 0) {
           await storage.syncSentEmail({
             messageId: message.id,
@@ -944,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log(`[Auto-sync] Synced ${filteredInboxMessages.length} inbox and ${filteredSentMessages.length} sent emails from/to sales@hackure.in for ${connectedUserEmail}`);
+      console.log(`[Auto-sync] Successfully synced emails for ${configEmail}`);
     } catch (error) {
       console.error("[Auto-sync] Error:", error instanceof Error ? error.message : String(error));
     }
