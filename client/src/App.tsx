@@ -14,6 +14,8 @@ import Templates from "@/pages/templates";
 import Datasets from "@/pages/datasets";
 import SendEmail from "@/pages/send-email";
 import EmailThreads from "@/pages/email-threads";
+import EmailList from "@/pages/email-list";
+import Inbox from "@/pages/inbox";
 import Users from "@/pages/emails";
 import Logs from "@/pages/logs";
 import Settings from "@/pages/settings";
@@ -59,7 +61,9 @@ function Router() {
                   <Route path="/send" component={SendEmail} />
                   <Route path="/templates" component={Templates} />
                   <Route path="/datasets" component={Datasets} />
-                  <Route path="/emails" component={EmailThreads} />
+                  <Route path="/inbox" component={Inbox} />
+                  <Route path="/sent" component={EmailList} />
+                  <Route path="/threads" component={EmailThreads} />
                   <Route path="/users" component={Users} />
                   <Route path="/logs" component={Logs} />
                   <Route path="/settings" component={Settings} />
@@ -68,7 +72,9 @@ function Router() {
                 <>
                   <Route path="/" component={SalesDashboard} />
                   <Route path="/send" component={SendEmail} />
-                  <Route path="/emails" component={EmailThreads} />
+                  <Route path="/inbox" component={Inbox} />
+                  <Route path="/sent" component={EmailList} />
+                  <Route path="/threads" component={EmailThreads} />
                   <Route path="/datasets" component={Datasets} />
                   <Route path="/settings" component={Settings} />
                 </>

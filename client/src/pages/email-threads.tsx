@@ -36,6 +36,7 @@ export default function EmailThreads() {
   const { data: threads, isLoading } = useQuery<EmailThread[]>({
     queryKey: ["/api/email-threads"],
     enabled: isAuthenticated && !authLoading,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
   const syncEmailsMutation = useMutation({

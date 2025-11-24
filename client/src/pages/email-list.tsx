@@ -33,6 +33,7 @@ export default function EmailList() {
   const { data: emails, isLoading } = useQuery<SentEmail[]>({
     queryKey: ["/api/emails"],
     enabled: isAuthenticated && !authLoading,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
   useEffect(() => {

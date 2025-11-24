@@ -9,6 +9,9 @@ import {
   Activity,
   Users,
   LogOut,
+  Inbox,
+  MailOpen,
+  MessagesSquare,
 } from "lucide-react";
 import {
   Sidebar,
@@ -55,9 +58,19 @@ export function AppSidebar() {
       icon: Database,
     },
     {
-      title: "All Emails",
-      url: "/emails",
-      icon: Mail,
+      title: "Inbox",
+      url: "/inbox",
+      icon: Inbox,
+    },
+    {
+      title: "Sent Emails",
+      url: "/sent",
+      icon: MailOpen,
+    },
+    {
+      title: "All Threads",
+      url: "/threads",
+      icon: MessagesSquare,
     },
     {
       title: "Users",
@@ -88,9 +101,19 @@ export function AppSidebar() {
       icon: Send,
     },
     {
-      title: "My Emails",
-      url: "/emails",
-      icon: Mail,
+      title: "Inbox",
+      url: "/inbox",
+      icon: Inbox,
+    },
+    {
+      title: "Sent Emails",
+      url: "/sent",
+      icon: MailOpen,
+    },
+    {
+      title: "My Threads",
+      url: "/threads",
+      icon: MessagesSquare,
     },
     {
       title: "Datasets",
