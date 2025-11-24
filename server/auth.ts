@@ -3,18 +3,31 @@ import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
+import createMemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
+  
+  // Use MemoryStore for development, PostgreSQL for production
+  let sessionStore;
+  if (process.env.NODE_ENV === "production" && process.env.DATABASE_URL) {
+    const pgStore = connectPg(session);
+    sessionStore = new pgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: false,
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
+  } else {
+    // Use in-memory storage for development
+    const MemoryStore = createMemoryStore(session);
+    sessionStore = new MemoryStore({
+      checkPeriod: sessionTtl,
+    });
+  }
+  
   return session({
     secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
     store: sessionStore,
