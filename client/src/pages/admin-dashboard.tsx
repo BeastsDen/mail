@@ -32,7 +32,7 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const { data: stats, isLoading } = useQuery<AdminStats>({
+  const { data: stats, isLoading, error } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
     enabled: isAuthenticated && !authLoading,
   });
@@ -50,6 +50,17 @@ export default function AdminDashboard() {
       return;
     }
   }, [isAuthenticated, authLoading, toast]);
+
+  useEffect(() => {
+    if (error) {
+      console.error("Admin stats error:", error);
+      toast({
+        title: "Error loading dashboard",
+        description: error instanceof Error ? error.message : "Failed to load admin statistics",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
   if (isLoading || authLoading) {
     return (
