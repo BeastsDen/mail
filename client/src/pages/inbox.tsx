@@ -324,8 +324,8 @@ export default function Inbox() {
       </Tabs>
 
       <Dialog open={!!selectedEmail} onOpenChange={() => setSelectedEmail(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader className="flex flex-row items-center justify-between space-y-0">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
             <DialogTitle>Email Details</DialogTitle>
             <DialogClose asChild>
               <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -334,7 +334,7 @@ export default function Inbox() {
             </DialogClose>
           </DialogHeader>
           {selectedEmail && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1">
               <div className="border-b pb-4">
                 <div className="flex items-start justify-between mb-2">
                   <div>
@@ -371,16 +371,16 @@ export default function Inbox() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="border-t pt-4">
+              <div className="border-t pt-4 flex-1 overflow-hidden flex flex-col">
                 <p className="text-sm text-muted-foreground mb-2">Message</p>
-                <div className="bg-muted p-4 rounded-md max-h-[400px] overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
+                <div className="bg-muted p-4 rounded-md overflow-y-auto flex-1 prose prose-sm dark:prose-invert max-w-none">
                   {selectedEmail.body ? (
                     selectedEmail.body.startsWith("<") ? (
                       <div 
                         dangerouslySetInnerHTML={{ 
                           __html: selectedEmail.body.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") 
                         }} 
-                        className="[&_img]:max-w-full [&_img]:h-auto [&_a]:text-blue-600 [&_a]:underline dark:[&_a]:text-blue-400 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:bg-muted"
+                        className="[&_img]:max-w-full [&_img]:h-auto [&_a]:text-blue-600 [&_a]:underline dark:[&_a]:text-blue-400 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:bg-muted [&_p]:my-2 [&_div]:my-2"
                       />
                     ) : (
                       <div className="text-sm whitespace-pre-wrap">{selectedEmail.body}</div>
