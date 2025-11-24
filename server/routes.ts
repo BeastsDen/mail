@@ -230,7 +230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/templates", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const templateData = insertEmailTemplateSchema.parse({
         ...req.body,
         createdBy: userId,
@@ -255,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/templates/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { id } = req.params;
 
       const template = await storage.getEmailTemplate(id);
@@ -283,7 +283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dataset routes
   app.get("/api/datasets", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (user?.role === "admin") {
@@ -301,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/datasets/upload", isAuthenticated, upload.single("file"), async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { name } = req.body;
       const file = req.file;
 
@@ -353,7 +353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/datasets/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { id } = req.params;
 
       const dataset = await storage.getDataset(id);
@@ -381,7 +381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Email routes
   app.get("/api/emails", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (user?.role === "admin") {
@@ -399,7 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/emails/send-bulk", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { datasetId, templateId } = req.body;
 
       if (!datasetId || !templateId) {
@@ -512,7 +512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/emails/:emailId/lead-status", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const { emailId } = req.params;
       const { leadStatus } = req.body;
 
@@ -540,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics routes
   app.get("/api/sales/stats", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
 
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -595,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (user?.role !== "admin") {
@@ -667,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Activity logs route
   app.get("/api/logs", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
 
       if (user?.role !== "admin") {

@@ -90,14 +90,16 @@ export function AppSidebar() {
       url: "/datasets",
       icon: Database,
     },
+    {
+      title: "Settings",
+      url: "/settings",
+      icon: Settings,
+    },
   ];
 
   const items = isAdmin ? adminItems : salesItems;
 
   const getInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-    }
     if (user?.email) {
       return user.email.substring(0, 2).toUpperCase();
     }
@@ -149,24 +151,24 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         <div className="flex items-center gap-3 rounded-md border border-sidebar-border bg-sidebar-accent p-3">
           <Avatar className="h-9 w-9" data-testid="avatar-user">
-            <AvatarImage src={user?.profileImageUrl || undefined} />
             <AvatarFallback>{getInitials()}</AvatarFallback>
           </Avatar>
           <div className="flex flex-1 flex-col overflow-hidden">
             <span className="truncate text-sm font-medium" data-testid="text-user-name">
-              {user?.firstName && user?.lastName
-                ? `${user.firstName} ${user.lastName}`
-                : user?.email || "User"}
+              {user?.email || "User"}
             </span>
             <span className="truncate text-xs text-muted-foreground" data-testid="text-user-email">
-              {user?.email}
+              {user?.role || "user"}
             </span>
           </div>
         </div>
         <Button
           variant="ghost"
           className="mt-2 w-full justify-start"
-          onClick={() => window.location.href = "/api/logout"}
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+            window.location.href = "/";
+          }}
           data-testid="button-logout"
         >
           <LogOut className="h-4 w-4" />
