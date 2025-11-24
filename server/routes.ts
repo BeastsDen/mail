@@ -794,15 +794,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id;
       const { status } = req.query;
       
-      // Get the sales user (sales@hackure.in)
-      const salesUser = await storage.getUserByEmail('sales@hackure.in');
-      
-      if (!salesUser) {
-        return res.status(404).json({ message: "Sales user not found" });
-      }
-      
-      // Only show threads related to the sales user
-      const threads = await storage.getEmailThreadsForUser(salesUser.id, status as string);
+      // Show only threads related to the currently logged-in user
+      const threads = await storage.getEmailThreadsForUser(userId, status as string);
       res.json(threads);
     } catch (error) {
       console.error("Error fetching email threads:", error);
@@ -859,58 +852,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Auto-sync emails every 1 minute for sales user
+  // Auto-sync emails every 1 minute for the Outlook-connected user
   setInterval(async () => {
     try {
-      const salesUser = await storage.getUserByEmail('sales@hackure.in');
-      if (salesUser) {
-        // Import Outlook functions
-        const { fetchEmails } = await import("./outlookClient");
-        
-        // Fetch emails from both inbox and sent items
-        const [inboxMessages, sentMessages] = await Promise.all([
-          fetchEmails('inbox', { top: 100 }),
-          fetchEmails('sentitems', { top: 100 })
-        ]);
+      const { fetchEmails } = await import("./outlookClient");
+      const { Client } = await import("@microsoft/microsoft-graph-client");
+      
+      // Get the authenticated user's email from Outlook
+      let connectedUserEmail: string | null = null;
+      try {
+        const client = await getOutlookClient();
+        const me = await client.api('/me').get();
+        connectedUserEmail = me.userPrincipalName || me.mail;
+      } catch (err) {
+        console.log("[Auto-sync] Could not fetch Outlook user info");
+        return;
+      }
 
-        // Sync received emails
-        for (const message of inboxMessages) {
-          await storage.syncReceivedEmail({
+      if (!connectedUserEmail) {
+        console.log("[Auto-sync] No connected Outlook user found");
+        return;
+      }
+
+      // Find the user in our database that matches the Outlook account
+      const outlookUser = await storage.getUserByEmail(connectedUserEmail);
+      if (!outlookUser) {
+        console.log(`[Auto-sync] No database user found for ${connectedUserEmail}`);
+        return;
+      }
+
+      // Fetch emails from both inbox and sent items
+      const [inboxMessages, sentMessages] = await Promise.all([
+        fetchEmails('inbox', { top: 100 }),
+        fetchEmails('sentitems', { top: 100 })
+      ]);
+
+      // Sync received emails
+      for (const message of inboxMessages) {
+        await storage.syncReceivedEmail({
+          messageId: message.id,
+          conversationId: message.conversationId,
+          senderEmail: message.from.emailAddress.address,
+          senderName: message.from.emailAddress.name || message.from.emailAddress.address,
+          subject: message.subject,
+          body: message.body.content,
+          bodyPreview: message.bodyPreview,
+          receivedBy: outlookUser.id,
+          isReply: false,
+          isRead: message.isRead,
+          receivedAt: new Date(message.receivedDateTime),
+        });
+      }
+
+      // Sync sent emails
+      for (const message of sentMessages) {
+        if (message.toRecipients && message.toRecipients.length > 0) {
+          await storage.syncSentEmail({
             messageId: message.id,
             conversationId: message.conversationId,
-            senderEmail: message.from.emailAddress.address,
-            senderName: message.from.emailAddress.name || message.from.emailAddress.address,
+            sentBy: outlookUser.id,
+            recipientEmail: message.toRecipients[0].emailAddress.address,
+            recipientName: message.toRecipients[0].emailAddress.name || message.toRecipients[0].emailAddress.address,
             subject: message.subject,
             body: message.body.content,
-            bodyPreview: message.bodyPreview,
-            receivedBy: salesUser.id,
-            isReply: false,
-            isRead: message.isRead,
-            receivedAt: new Date(message.receivedDateTime),
+            status: 'sent',
+            sentAt: new Date(message.receivedDateTime),
           });
         }
-
-        // Sync sent emails
-        for (const message of sentMessages) {
-          if (message.toRecipients && message.toRecipients.length > 0) {
-            await storage.syncSentEmail({
-              messageId: message.id,
-              conversationId: message.conversationId,
-              sentBy: salesUser.id,
-              recipientEmail: message.toRecipients[0].emailAddress.address,
-              recipientName: message.toRecipients[0].emailAddress.name || message.toRecipients[0].emailAddress.address,
-              subject: message.subject,
-              body: message.body.content,
-              status: 'sent',
-              sentAt: new Date(message.receivedDateTime),
-            });
-          }
-        }
-
-        console.log(`[Auto-sync] Synced ${inboxMessages.length} inbox and ${sentMessages.length} sent emails for sales@hackure.in`);
       }
+
+      console.log(`[Auto-sync] Synced ${inboxMessages.length} inbox and ${sentMessages.length} sent emails for ${connectedUserEmail}`);
     } catch (error) {
-      console.error("[Auto-sync] Error syncing emails:", error);
+      console.error("[Auto-sync] Error:", error instanceof Error ? error.message : String(error));
     }
   }, 60 * 1000); // Run every 1 minute
 
