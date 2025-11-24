@@ -1,67 +1,68 @@
-// Outlook integration using Microsoft Graph API via Replit connector
+// Outlook integration using Microsoft Graph API with Azure App Registration
 import { Client } from '@microsoft/microsoft-graph-client';
 
-let connectionSettings: any;
+interface TokenCache {
+  accessToken: string;
+  expiresAt: number;
+}
 
-async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings?.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+let tokenCache: TokenCache | null = null;
+
+async function getAccessToken(): Promise<string> {
+  // Check if cached token is still valid
+  if (tokenCache && tokenCache.expiresAt > Date.now()) {
+    console.log('[Outlook] Using cached access token');
+    return tokenCache.accessToken;
   }
+
+  // Get Azure credentials from environment
+  const clientId = process.env.AZURE_CLIENT_ID;
+  const clientSecret = process.env.AZURE_CLIENT_SECRET;
+  const tenantId = process.env.AZURE_TENANT_ID;
+
+  if (!clientId || !clientSecret || !tenantId) {
+    throw new Error('Missing Azure credentials: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, or AZURE_TENANT_ID not found in environment');
+  }
+
+  console.log('[Outlook] Fetching new access token from Azure...');
+
+  // Use Client Credentials OAuth flow to get access token
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
   
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
+    }).toString(),
+  });
 
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Outlook] Token fetch error:', response.status, errorText);
+    throw new Error(`Failed to get access token: ${response.status} ${errorText}`);
   }
 
-  // Try querying by connection ID first
-  let response = await fetch(
-    'https://' + hostname + '/api/v2/connection/conn_outlook_01KAVPKYXN08H29C1S39DVK05V?include_secrets=true',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json());
-
-  console.log('[Outlook] Connection response (by ID):', JSON.stringify(response, null, 2));
-  
-  // If that didn't work, try querying by connector name
-  if (!response.settings && !response.oauth) {
-    response = await fetch(
-      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=outlook',
-      {
-        headers: {
-          'Accept': 'application/json',
-          'X_REPLIT_TOKEN': xReplitToken
-        }
-      }
-    ).then(res => res.json());
-    
-    console.log('[Outlook] Connection response (by name):', JSON.stringify(response, null, 2));
-    connectionSettings = response.items?.[0];
-  } else {
-    connectionSettings = response;
-  }
-  
-  if (!connectionSettings || (!connectionSettings.settings && !connectionSettings.oauth)) {
-    console.log('[Outlook] Debug - hostname:', hostname);
-    console.log('[Outlook] Debug - token exists:', !!xReplitToken);
-    console.log('[Outlook] Debug - response keys:', Object.keys(response || {}));
-    throw new Error('Outlook not connected - no connection found in response');
-  }
-
-  const accessToken = connectionSettings.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+  const data = await response.json();
+  const accessToken = data.access_token;
+  const expiresIn = data.expires_in || 3600; // Token expires in seconds (default 1 hour)
 
   if (!accessToken) {
-    throw new Error('Outlook not connected - no access token found');
+    throw new Error('No access token received from Azure');
   }
+
+  // Cache the token with expiration time (subtract 5 minutes for safety margin)
+  tokenCache = {
+    accessToken,
+    expiresAt: Date.now() + (expiresIn * 1000) - (5 * 60 * 1000),
+  };
+
+  console.log('[Outlook] New access token obtained, expires in', expiresIn, 'seconds');
   return accessToken;
 }
 
@@ -221,8 +222,10 @@ export async function sendEmail(params: {
  */
 export async function replyToEmail(messageId: string, comment: string): Promise<void> {
   const client = await getOutlookClient();
+  
+  const salesEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
 
-  await client.api(`/me/messages/${messageId}/reply`).post({
+  await client.api(`/users/${salesEmail}/messages/${messageId}/reply`).post({
     comment,
   });
 }
@@ -232,8 +235,10 @@ export async function replyToEmail(messageId: string, comment: string): Promise<
  */
 export async function markEmailAsRead(messageId: string, isRead: boolean = true): Promise<void> {
   const client = await getOutlookClient();
+  
+  const salesEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
 
-  await client.api(`/me/messages/${messageId}`).patch({
+  await client.api(`/users/${salesEmail}/messages/${messageId}`).patch({
     isRead,
   });
 }
