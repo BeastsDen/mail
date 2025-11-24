@@ -232,6 +232,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Try to get user profile to verify connection
       const profile = await outlookClient.api('/me').get();
       
+      await storage.createActivityLog({
+        userId: currentUserId,
+        action: "outlook_connection_tested",
+        entityType: "system",
+        entityId: "outlook",
+        details: { status: "success", email: profile.mail || profile.userPrincipalName },
+      });
+      
       res.json({ 
         connected: true, 
         email: profile.mail || profile.userPrincipalName,
@@ -239,9 +247,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Outlook connection test failed:", error);
+      
+      const currentUserId = req.user.id;
+      await storage.createActivityLog({
+        userId: currentUserId,
+        action: "outlook_connection_failed",
+        entityType: "system",
+        entityId: "outlook",
+        details: { error: error.message },
+      });
+      
       res.status(500).json({ 
         connected: false, 
-        message: error.message || "Failed to connect to Outlook" 
+        message: error.message || "Failed to connect to Outlook",
+        needsReconfiguration: true
       });
     }
   });

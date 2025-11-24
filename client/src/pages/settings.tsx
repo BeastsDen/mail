@@ -113,6 +113,35 @@ export default function Settings() {
     }
   };
 
+  const reconfigureOutlook = async () => {
+    try {
+      // Attempt to reconfigure by clearing the status and prompting a retest
+      setOutlookStatus(null);
+      toast({
+        title: "Reconfiguration Started",
+        description: "Please ensure Outlook connector is set up in Replit. Opening connections page...",
+      });
+      
+      // Open Replit connections in new tab
+      const connectionsUrl = window.location.hostname.includes('replit.dev') 
+        ? `https://${window.location.hostname.split('.')[0]}.replit.dev/~/connections`
+        : "https://replit.com/@replit/connections";
+      
+      window.open(connectionsUrl, "_blank");
+      
+      // Auto-retest after a delay to allow reconfiguration
+      setTimeout(() => {
+        testOutlookConnection();
+      }, 3000);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to initiate reconfiguration",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -220,14 +249,25 @@ export default function Settings() {
                 All emails are sent using the sales@hackure.in Outlook account.
               </p>
               {isAdmin && (
-                <Button
-                  onClick={testOutlookConnection}
-                  disabled={isTestingOutlook}
-                  variant="outline"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isTestingOutlook ? "animate-spin" : ""}`} />
-                  {isTestingOutlook ? "Testing Connection..." : "Test Outlook Connection"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={testOutlookConnection}
+                    disabled={isTestingOutlook}
+                    variant="outline"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isTestingOutlook ? "animate-spin" : ""}`} />
+                    {isTestingOutlook ? "Testing Connection..." : "Test Outlook Connection"}
+                  </Button>
+                  {outlookStatus && !outlookStatus.connected && (
+                    <Button
+                      onClick={reconfigureOutlook}
+                      variant="default"
+                    >
+                      <Mail className="h-4 w-4" />
+                      Reconfigure Outlook
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </CardContent>
