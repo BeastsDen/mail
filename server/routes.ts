@@ -751,7 +751,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import Outlook functions
       const { fetchEmails } = await import("./outlookClient");
       
-      // Fetch emails from both inbox and sent items
+      // Fetch emails from admin mailbox and filter for sales@hackure.in
       const [inboxMessages, sentMessages] = await Promise.all([
         fetchEmails('inbox', { top: 100 }),
         fetchEmails('sentitems', { top: 100 })
@@ -898,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Fetch emails from both inbox and sent items
+      // Fetch emails from admin mailbox and filter for sales@hackure.in
       const [inboxMessages, sentMessages] = await Promise.all([
         fetchEmails('inbox', { top: 100 }),
         fetchEmails('sentitems', { top: 100 })

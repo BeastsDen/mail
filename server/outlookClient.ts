@@ -124,12 +124,13 @@ export async function fetchEmails(
     orderBy = 'receivedDateTime DESC'
   } = options;
 
+  // Query authenticated user's mailbox
   let request = client
     .api(`/me/mailFolders/${folderName}/messages`)
     .top(top)
     .skip(skip)
     .orderby(orderBy)
-    .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,receivedDateTime,isRead,hasAttachments');
+    .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,isRead,hasAttachments');
 
   if (filter) {
     request = request.filter(filter);
@@ -198,6 +199,7 @@ export async function sendEmail(params: {
     })),
   };
 
+  // Send email from authenticated user's mailbox
   await client.api('/me/sendMail').post({
     message,
     saveToSentItems: true,
