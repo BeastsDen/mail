@@ -4,14 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Lock } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Lock, Mail, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 
 export default function Settings() {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isTestingOutlook, setIsTestingOutlook] = useState(false);
+  const [outlookStatus, setOutlookStatus] = useState<{
+    connected: boolean;
+    email?: string;
+    displayName?: string;
+    message?: string;
+  } | null>(null);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +74,42 @@ export default function Settings() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const testOutlookConnection = async () => {
+    setIsTestingOutlook(true);
+    try {
+      const response = await fetch("/api/outlook/test", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.connected) {
+        setOutlookStatus(data);
+        toast({
+          title: "Success",
+          description: `Connected to Outlook as ${data.email}`,
+        });
+      } else {
+        setOutlookStatus({ connected: false, message: data.message });
+        toast({
+          title: "Connection Failed",
+          description: data.message || "Failed to connect to Outlook",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      setOutlookStatus({ connected: false, message: error.message });
+      toast({
+        title: "Error",
+        description: "Failed to test Outlook connection",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingOutlook(false);
     }
   };
 
@@ -133,15 +178,58 @@ export default function Settings() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Email Configuration</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Email Configuration
+            </CardTitle>
             <CardDescription>
-              Microsoft Outlook integration is active and ready to send emails
+              Microsoft Outlook integration for sending emails using sales@hackure.in
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Your Outlook account is connected and configured for sending emails.
-            </p>
+          <CardContent className="space-y-4">
+            {outlookStatus && (
+              <div className={`flex items-center gap-2 p-3 rounded-md ${
+                outlookStatus.connected 
+                  ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" 
+                  : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+              }`}>
+                {outlookStatus.connected ? (
+                  <>
+                    <CheckCircle className="h-5 w-5" />
+                    <div>
+                      <p className="text-sm font-medium">Connected</p>
+                      <p className="text-xs">
+                        {outlookStatus.email} ({outlookStatus.displayName})
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-5 w-5" />
+                    <div>
+                      <p className="text-sm font-medium">Not Connected</p>
+                      <p className="text-xs">{outlookStatus.message}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                All emails are sent using the sales@hackure.in Outlook account.
+              </p>
+              {isAdmin && (
+                <Button
+                  onClick={testOutlookConnection}
+                  disabled={isTestingOutlook}
+                  variant="outline"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isTestingOutlook ? "animate-spin" : ""}`} />
+                  {isTestingOutlook ? "Testing Connection..." : "Test Outlook Connection"}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
 

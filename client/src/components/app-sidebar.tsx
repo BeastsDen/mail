@@ -38,6 +38,11 @@ export function AppSidebar() {
       icon: LayoutDashboard,
     },
     {
+      title: "Send Email",
+      url: "/send",
+      icon: Send,
+    },
+    {
       title: "Email Templates",
       url: "/templates",
       icon: FileText,

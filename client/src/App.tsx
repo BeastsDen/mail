@@ -56,6 +56,7 @@ function Router() {
               {isAdmin ? (
                 <>
                   <Route path="/" component={AdminDashboard} />
+                  <Route path="/send" component={SendEmail} />
                   <Route path="/templates" component={Templates} />
                   <Route path="/datasets" component={Datasets} />
                   <Route path="/emails" component={EmailList} />

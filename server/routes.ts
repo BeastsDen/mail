@@ -217,6 +217,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Outlook connection test (Admin only)
+  app.post("/api/outlook/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const currentUser = await storage.getUser(currentUserId);
+      
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const outlookClient = await getOutlookClient();
+      
+      // Try to get user profile to verify connection
+      const profile = await outlookClient.api('/me').get();
+      
+      res.json({ 
+        connected: true, 
+        email: profile.mail || profile.userPrincipalName,
+        displayName: profile.displayName
+      });
+    } catch (error: any) {
+      console.error("Outlook connection test failed:", error);
+      res.status(500).json({ 
+        connected: false, 
+        message: error.message || "Failed to connect to Outlook" 
+      });
+    }
+  });
+
   // Template routes
   app.get("/api/templates", isAuthenticated, async (req: any, res) => {
     try {
