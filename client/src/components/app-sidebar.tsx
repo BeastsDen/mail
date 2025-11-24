@@ -26,10 +26,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isAdmin } = useAuth();
+  const { toast } = useToast();
 
   const adminItems = [
     {
@@ -171,8 +174,25 @@ export function AppSidebar() {
           variant="ghost"
           className="mt-2 w-full justify-start"
           onClick={async () => {
-            await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-            window.location.href = "/";
+            try {
+              const res = await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              if (res.ok) {
+                window.location.href = "/";
+              } else {
+                toast({
+                  title: "Logout failed",
+                  description: "Could not log out. Please try again.",
+                  variant: "destructive",
+                });
+              }
+            } catch (error) {
+              console.error("Logout error:", error);
+              toast({
+                title: "Logout failed",
+                description: "Network error. Please check your connection and try again.",
+                variant: "destructive",
+              });
+            }
           }}
           data-testid="button-logout"
         >
