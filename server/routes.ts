@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import bcrypt from "bcryptjs";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import { getOutlookClient } from "./outlookClient";
 import {
   insertDatasetSchema,
@@ -21,19 +22,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await storage.getUser(userId);
-      res.json(user);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const { passwordHash, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
+  app.post("/api/auth/change-password", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current and new passwords are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      const newPasswordHash = await bcrypt.hash(newPassword, 12);
+      await storage.updatePassword(userId, newPasswordHash);
+
+      res.json({ message: "Password changed successfully" });
+    } catch (error) {
+      console.error("Error changing password:", error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
   // User management routes (Admin only)
   app.get("/api/users", isAuthenticated, async (req: any, res) => {
     try {
-      const currentUserId = req.user.claims.sub;
+      const currentUserId = req.user.id;
       const currentUser = await storage.getUser(currentUserId);
       
       if (currentUser?.role !== "admin") {
@@ -41,7 +79,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const users = await storage.getAllUsers();
-      res.json(users);
+      const usersWithoutPasswords = users.map(({ passwordHash, ...user }) => user);
+      res.json(usersWithoutPasswords);
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
@@ -50,7 +89,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/users/:userId/role", isAuthenticated, async (req: any, res) => {
     try {
-      const currentUserId = req.user.claims.sub;
+      const currentUserId = req.user.id;
       const currentUser = await storage.getUser(currentUserId);
       
       if (currentUser?.role !== "admin") {
@@ -74,10 +113,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: { role },
       });
 
-      res.json(updatedUser);
+      const { passwordHash, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
     } catch (error) {
       console.error("Error updating user role:", error);
       res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  app.delete("/api/users/:userId", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const currentUser = await storage.getUser(currentUserId);
+      
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { userId } = req.params;
+
+      if (userId === currentUserId) {
+        return res.status(400).json({ message: "Cannot delete yourself" });
+      }
+
+      await storage.deleteUser(userId);
+      
+      await storage.createActivityLog({
+        userId: currentUserId,
+        action: "user_deleted",
+        entityType: "user",
+        entityId: userId,
+      });
+
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.patch("/api/users/:userId/block", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const currentUser = await storage.getUser(currentUserId);
+      
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { userId } = req.params;
+      const { blockedUntil } = req.body;
+
+      if (userId === currentUserId) {
+        return res.status(400).json({ message: "Cannot block yourself" });
+      }
+
+      const blockedUser = await storage.blockUser(
+        userId, 
+        blockedUntil ? new Date(blockedUntil) : undefined
+      );
+      
+      await storage.createActivityLog({
+        userId: currentUserId,
+        action: "user_blocked",
+        entityType: "user",
+        entityId: userId,
+        details: { blockedUntil },
+      });
+
+      const { passwordHash, ...userWithoutPassword } = blockedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error blocking user:", error);
+      res.status(500).json({ message: "Failed to block user" });
+    }
+  });
+
+  app.patch("/api/users/:userId/unblock", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const currentUser = await storage.getUser(currentUserId);
+      
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { userId } = req.params;
+
+      const unblockedUser = await storage.unblockUser(userId);
+      
+      await storage.createActivityLog({
+        userId: currentUserId,
+        action: "user_unblocked",
+        entityType: "user",
+        entityId: userId,
+      });
+
+      const { passwordHash, ...userWithoutPassword } = unblockedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error unblocking user:", error);
+      res.status(500).json({ message: "Failed to unblock user" });
     }
   });
 

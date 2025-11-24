@@ -28,9 +28,15 @@ import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: UpsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(userId: string, role: string): Promise<User>;
+  deleteUser(userId: string): Promise<void>;
+  blockUser(userId: string, blockedUntil?: Date): Promise<User>;
+  unblockUser(userId: string): Promise<User>;
+  updatePassword(userId: string, passwordHash: string): Promise<User>;
 
   // Dataset operations
   createDataset(dataset: InsertDataset): Promise<Dataset>;
@@ -107,6 +113,59 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async createUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, userId));
+  }
+
+  async blockUser(userId: string, blockedUntil?: Date): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        isBlocked: true, 
+        blockedUntil: blockedUntil || null,
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async unblockUser(userId: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        isBlocked: false, 
+        blockedUntil: null,
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async updatePassword(userId: string, passwordHash: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        passwordHash, 
+        passwordChangedAt: new Date(),
+        updatedAt: new Date() 
+      })
       .where(eq(users.id, userId))
       .returning();
     return user;

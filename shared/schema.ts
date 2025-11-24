@@ -32,14 +32,15 @@ export const UserRole = {
 
 export type UserRoleType = typeof UserRole[keyof typeof UserRole];
 
-// Users table - required for Replit Auth with role extension
+// Users table - custom password-based authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  email: varchar("email").unique().notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   role: varchar("role", { length: 20 }).notNull().default('sales'), // 'admin' or 'sales'
+  isBlocked: boolean("is_blocked").notNull().default(false),
+  blockedUntil: timestamp("blocked_until"),
+  passwordChangedAt: timestamp("password_changed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
