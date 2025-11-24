@@ -19,8 +19,9 @@ async function getAccessToken() {
     throw new Error('X_REPLIT_TOKEN not found for repl/depl');
   }
 
-  const response = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=outlook',
+  // Try querying by connection ID first
+  let response = await fetch(
+    'https://' + hostname + '/api/v2/connection/conn_outlook_01KAVKKN8F6GY6N7XFEX4SWZ93?include_secrets=true',
     {
       headers: {
         'Accept': 'application/json',
@@ -29,14 +30,30 @@ async function getAccessToken() {
     }
   ).then(res => res.json());
 
-  console.log('[Outlook] Connection response:', JSON.stringify(response, null, 2));
+  console.log('[Outlook] Connection response (by ID):', JSON.stringify(response, null, 2));
   
-  connectionSettings = response.items?.[0];
+  // If that didn't work, try querying by connector name
+  if (!response.settings && !response.oauth) {
+    response = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=outlook',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X_REPLIT_TOKEN': xReplitToken
+        }
+      }
+    ).then(res => res.json());
+    
+    console.log('[Outlook] Connection response (by name):', JSON.stringify(response, null, 2));
+    connectionSettings = response.items?.[0];
+  } else {
+    connectionSettings = response;
+  }
   
-  if (!connectionSettings) {
+  if (!connectionSettings || (!connectionSettings.settings && !connectionSettings.oauth)) {
     console.log('[Outlook] Debug - hostname:', hostname);
     console.log('[Outlook] Debug - token exists:', !!xReplitToken);
-    console.log('[Outlook] Debug - response keys:', Object.keys(response));
+    console.log('[Outlook] Debug - response keys:', Object.keys(response || {}));
     throw new Error('Outlook not connected - no connection found in response');
   }
 
