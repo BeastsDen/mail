@@ -126,8 +126,15 @@ export default function EmailThreads() {
 
   const filterByLeadStatus = (status: string) => {
     if (!threads) return [];
-    if (status === "all") return threads;
-    return threads.filter((thread) => thread.leadStatus === status);
+    
+    // Filter to only show threads with multiple messages (actual conversations)
+    const multiMessageThreads = threads.filter((thread) => thread.messageCount > 1);
+    
+    if (status === "all") return multiMessageThreads;
+    if (status === "unassigned") {
+      return multiMessageThreads.filter((thread) => !thread.leadStatus || thread.leadStatus === "");
+    }
+    return multiMessageThreads.filter((thread) => thread.leadStatus === status);
   };
 
   return (
