@@ -730,17 +730,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Helper function to check if email involves sales@hackure.in
-  function isSalesEmail(message: any): boolean {
+  // Get configured email to sync and send from
+  const configEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
+  
+  // Helper function to check if email involves the configured email
+  function isConfiguredEmail(message: any): boolean {
     const senderEmail = message.from?.emailAddress?.address || '';
     const toEmails = message.toRecipients?.map((r: any) => r.emailAddress?.address) || [];
     const ccEmails = message.ccRecipients?.map((r: any) => r.emailAddress?.address) || [];
     const bccEmails = message.bccRecipients?.map((r: any) => r.emailAddress?.address) || [];
     
     const allRecipients = [...toEmails, ...ccEmails, ...bccEmails];
-    const salesEmail = 'sales@hackure.in';
     
-    return senderEmail === salesEmail || allRecipients.includes(salesEmail);
+    return senderEmail === configEmail || allRecipients.includes(configEmail);
   }
 
   // Email sync and thread management routes
@@ -751,15 +753,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import Outlook functions
       const { fetchEmails } = await import("./outlookClient");
       
-      // Fetch emails from admin mailbox and filter for sales@hackure.in
+      // Fetch emails from admin mailbox and filter for configured email
       const [inboxMessages, sentMessages] = await Promise.all([
         fetchEmails('inbox', { top: 100 }),
         fetchEmails('sentitems', { top: 100 })
       ]);
 
-      // Filter to only emails from/to sales@hackure.in
-      const filteredInboxMessages = inboxMessages.filter(isSalesEmail);
-      const filteredSentMessages = sentMessages.filter(isSalesEmail);
+      // Filter to only emails from/to configured email
+      const filteredInboxMessages = inboxMessages.filter(isConfiguredEmail);
+      const filteredSentMessages = sentMessages.filter(isConfiguredEmail);
 
       // Sync received emails
       for (const message of filteredInboxMessages) {
@@ -898,15 +900,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Fetch emails from admin mailbox and filter for sales@hackure.in
+      // Fetch emails from admin mailbox and filter for configured email
       const [inboxMessages, sentMessages] = await Promise.all([
         fetchEmails('inbox', { top: 100 }),
         fetchEmails('sentitems', { top: 100 })
       ]);
 
-      // Filter to only emails from/to sales@hackure.in
-      const filteredInboxMessages = inboxMessages.filter(isSalesEmail);
-      const filteredSentMessages = sentMessages.filter(isSalesEmail);
+      // Filter to only emails from/to configured email
+      const filteredInboxMessages = inboxMessages.filter(isConfiguredEmail);
+      const filteredSentMessages = sentMessages.filter(isConfiguredEmail);
 
       // Sync received emails
       for (const message of filteredInboxMessages) {

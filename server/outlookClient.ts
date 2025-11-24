@@ -179,14 +179,24 @@ export async function sendEmail(params: {
   body: string;
   cc?: string[];
   bcc?: string[];
+  from?: string;
 }): Promise<void> {
   const client = await getOutlookClient();
+  
+  // Use the specified from address or default to authenticated user
+  const fromEmail = params.from || 'sales@hackure.in';
 
   const message = {
     subject: params.subject,
     body: {
       contentType: 'HTML',
       content: params.body,
+    },
+    from: {
+      emailAddress: {
+        address: fromEmail,
+        name: fromEmail.split('@')[0]
+      }
     },
     toRecipients: params.to.map(email => ({
       emailAddress: { address: email }
