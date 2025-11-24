@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Mail, Inbox as InboxIcon } from "lucide-react";
-import { Link } from "wouter";
+import { Inbox as InboxIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -13,17 +12,15 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { ReceivedEmail } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
-import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function Inbox() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const { data: emails, isLoading, refetch } = useQuery<ReceivedEmail[]>({
+  const { data: emails, isLoading } = useQuery<ReceivedEmail[]>({
     queryKey: ["/api/emails/received"],
     enabled: isAuthenticated && !authLoading,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
@@ -66,16 +63,11 @@ export default function Inbox() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="heading-inbox">Inbox</h1>
-          <p className="text-muted-foreground">
-            View received emails and replies
-          </p>
-        </div>
-        <Button onClick={() => refetch()} variant="outline" data-testid="button-refresh">
-          Refresh
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="heading-inbox">Inbox</h1>
+        <p className="text-muted-foreground">
+          View received emails and replies (auto-refreshes every 10 seconds)
+        </p>
       </div>
 
       <Card>

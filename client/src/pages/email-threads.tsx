@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon, RefreshCw, ChevronRight } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -37,26 +36,6 @@ export default function EmailThreads() {
     queryKey: ["/api/email-threads"],
     enabled: isAuthenticated && !authLoading,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
-  });
-
-  const syncEmailsMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("POST", "/api/emails/sync", {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/email-threads"] });
-      toast({
-        title: "Success",
-        description: "Emails synced successfully",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to sync emails",
-        variant: "destructive",
-      });
-    },
   });
 
   const updateThreadStatusMutation = useMutation({
@@ -140,21 +119,11 @@ export default function EmailThreads() {
   return (
     <>
       <div className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">All Emails</h1>
-            <p className="text-muted-foreground">
-              View and manage email conversations from sales@hackure.in
-            </p>
-          </div>
-          <Button
-            onClick={() => syncEmailsMutation.mutate()}
-            disabled={syncEmailsMutation.isPending}
-            data-testid="button-sync-emails"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${syncEmailsMutation.isPending ? 'animate-spin' : ''}`} />
-            Sync Emails
-          </Button>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Email Threads</h1>
+          <p className="text-muted-foreground">
+            View and manage email conversations from sales@hackure.in (auto-syncs every minute)
+          </p>
         </div>
 
         <Tabs defaultValue="all" className="space-y-4">
@@ -276,20 +245,11 @@ export default function EmailThreads() {
                         <Mail className="h-8 w-8 text-muted-foreground" />
                       </div>
                       <p className="mb-2 text-sm font-medium">No email threads found</p>
-                      <p className="text-sm text-muted-foreground mb-4">
+                      <p className="text-sm text-muted-foreground">
                         {status === "all"
-                          ? "Click 'Sync Emails' to fetch emails from Outlook"
+                          ? "Emails are automatically synced every minute. Threads will appear here once you have conversations with multiple messages."
                           : `No ${status} leads at the moment`}
                       </p>
-                      {status === "all" && (
-                        <Button 
-                          onClick={() => syncEmailsMutation.mutate()}
-                          disabled={syncEmailsMutation.isPending}
-                        >
-                          <RefreshCw className={`mr-2 h-4 w-4 ${syncEmailsMutation.isPending ? 'animate-spin' : ''}`} />
-                          Sync Emails
-                        </Button>
-                      )}
                     </div>
                   )}
                 </CardContent>

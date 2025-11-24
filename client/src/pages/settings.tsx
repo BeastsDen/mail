@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Lock, Mail, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Lock, Mail, CheckCircle, XCircle, RefreshCw, Download } from "lucide-react";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -21,6 +23,27 @@ export default function Settings() {
     displayName?: string;
     message?: string;
   } | null>(null);
+
+  const syncEmailsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/emails/sync", {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-threads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/emails/received"] });
+      toast({
+        title: "Success",
+        description: `Synced ${data.inboxCount || 0} inbox emails and ${data.sentCount || 0} sent emails`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to sync emails",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,6 +298,34 @@ export default function Settings() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Email Sync
+            </CardTitle>
+            <CardDescription>
+              Manually sync emails from Outlook. Emails are automatically synced every minute in the background.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Click the button below to immediately sync emails from your Outlook account. 
+                This will fetch new emails that aren't already in the database.
+              </p>
+              <Button
+                onClick={() => syncEmailsMutation.mutate()}
+                disabled={syncEmailsMutation.isPending}
+                data-testid="button-sync-emails-manual"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncEmailsMutation.isPending ? 'animate-spin' : ''}`} />
+                {syncEmailsMutation.isPending ? "Syncing Emails..." : "Sync Emails Now"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>System Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -289,6 +340,10 @@ export default function Settings() {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Email Provider</span>
               <span className="font-medium">Microsoft Outlook</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Auto-Sync Interval</span>
+              <span className="font-medium">Every 1 minute</span>
             </div>
           </CardContent>
         </Card>
