@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -17,6 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,6 +36,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 export default function EmailList() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
 
   const { data: emails, isLoading } = useQuery<SentEmail[]>({
     queryKey: ["/api/emails"],
@@ -192,7 +200,12 @@ export default function EmailList() {
                     </TableHeader>
                     <TableBody>
                       {filterByLeadStatus(status).map((email) => (
-                        <TableRow key={email.id} data-testid={`row-email-${email.id}`}>
+                        <TableRow 
+                          key={email.id} 
+                          data-testid={`row-email-${email.id}`}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setSelectedEmail(email)}
+                        >
                           <TableCell>
                             <div>
                               <p className="font-medium">
@@ -220,7 +233,7 @@ export default function EmailList() {
                               ? new Date(email.sentAt).toLocaleString()
                               : "-"}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                             <Select
                               value={email.leadStatus || "unassigned"}
                               onValueChange={(leadStatus) =>
@@ -266,6 +279,72 @@ export default function EmailList() {
           </TabsContent>
         ))}
       </Tabs>
+
+      <Dialog open={!!selectedEmail} onOpenChange={() => setSelectedEmail(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader className="flex flex-row items-center justify-between space-y-0">
+            <DialogTitle>Email Details</DialogTitle>
+            <DialogClose asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6">
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogClose>
+          </DialogHeader>
+          {selectedEmail && (
+            <div className="space-y-4">
+              <div className="border-b pb-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">To</p>
+                    <p className="font-medium">{selectedEmail.recipientName || selectedEmail.recipientEmail}</p>
+                    <p className="text-sm text-muted-foreground font-mono">{selectedEmail.recipientEmail}</p>
+                  </div>
+                  {getStatusBadge(selectedEmail.status || "sent")}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Subject</p>
+                <p className="font-semibold">{selectedEmail.subject}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Lead Status</p>
+                <Select
+                  defaultValue={selectedEmail.leadStatus || "unassigned"}
+                  onValueChange={(leadStatus) =>
+                    updateLeadStatusMutation.mutate({
+                      emailId: selectedEmail.id,
+                      leadStatus,
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hot">🔥 Hot</SelectItem>
+                    <SelectItem value="cold">❄️ Cold</SelectItem>
+                    <SelectItem value="dead">✕ Dead</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground mb-2">Message</p>
+                <div className="bg-muted p-4 rounded-md max-h-[300px] overflow-y-auto">
+                  {selectedEmail.body ? (
+                    <div className="text-sm whitespace-pre-wrap">{selectedEmail.body}</div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No message body available</p>
+                  )}
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Sent: {selectedEmail.sentAt ? new Date(selectedEmail.sentAt).toLocaleString() : "-"}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
