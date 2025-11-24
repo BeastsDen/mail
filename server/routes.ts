@@ -890,11 +890,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use CONFIG_EMAIL (sales@hackure.in) directly since we're using application permissions
       const configEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
       
-      // Find the user in our database that matches the configured email
-      const outlookUser = await storage.getUserByEmail(configEmail);
+      // Get or create the user for this email
+      let outlookUser = await storage.getUserByEmail(configEmail);
       if (!outlookUser) {
-        console.log(`[Auto-sync] No database user found for ${configEmail}`);
-        return;
+        console.log(`[Auto-sync] Creating user for ${configEmail}`);
+        // Create a system user for syncing emails
+        const tempPasswordHash = await import('bcryptjs').then(m => m.hash('system-user-' + Math.random(), 12));
+        outlookUser = await storage.createUser({
+          email: configEmail,
+          passwordHash: tempPasswordHash,
+          role: 'admin',
+        });
       }
 
       console.log(`[Auto-sync] Starting sync for ${configEmail} (user ID: ${outlookUser.id})`);
@@ -941,9 +947,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log(`[Auto-sync] Successfully synced emails for ${configEmail}`);
+      console.log(`[Auto-sync] Successfully synced ${inboxMessages.length + sentMessages.length} emails for ${configEmail}`);
     } catch (error) {
       console.error("[Auto-sync] Error:", error instanceof Error ? error.message : String(error));
+      console.error("[Auto-sync] Full error:", error);
     }
   }, 60 * 1000); // Run every 1 minute
 
