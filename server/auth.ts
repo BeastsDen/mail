@@ -81,7 +81,8 @@ export async function setupAuth(app: Express) {
           }
 
           return done(null, { id: user.id, email: user.email, role: user.role });
-        } catch (error) {
+        } catch (error: any) {
+          console.error("Login strategy error:", error?.message || error);
           return done(error);
         }
       }
