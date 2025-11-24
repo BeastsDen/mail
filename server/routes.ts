@@ -87,6 +87,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const currentUser = await storage.getUser(currentUserId);
+      
+      if (currentUser?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { email, password, firstName, lastName, role } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      const newUser = await storage.createUser({
+        email,
+        firstName,
+        lastName,
+        passwordHash,
+        role: role || "sales",
+      });
+
+      await storage.createActivityLog({
+        userId: currentUserId,
+        action: "user_created",
+        entityType: "user",
+        entityId: newUser.id,
+        details: { email, role: newUser.role },
+      });
+
+      const { passwordHash: _, ...userWithoutPassword } = newUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
   app.patch("/api/users/:userId/role", isAuthenticated, async (req: any, res) => {
     try {
       const currentUserId = req.user.id;
