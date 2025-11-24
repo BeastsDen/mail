@@ -23,22 +23,14 @@ export default function Inbox() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  const { data, isLoading } = useQuery<{ emails: ReceivedEmail[], total: number, limit: number, offset: number }>({
-    queryKey: ["/api/emails/received", currentPage],
-    queryFn: async () => {
-      const offset = (currentPage - 1) * itemsPerPage;
-      const response = await fetch(`/api/emails/received?limit=${itemsPerPage}&offset=${offset}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Failed to fetch emails');
-      return response.json();
-    },
+  const { data, isLoading } = useQuery<ReceivedEmail[]>({
+    queryKey: ["/api/emails/received"],
     enabled: isAuthenticated && !authLoading,
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  const emails = data?.emails || [];
-  const totalEmails = data?.total || 0;
+  const emails = data?.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage) || [];
+  const totalEmails = data?.length || 0;
   const totalPages = Math.ceil(totalEmails / itemsPerPage);
 
   useEffect(() => {

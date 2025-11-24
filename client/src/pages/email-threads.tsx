@@ -177,7 +177,7 @@ export default function EmailThreads() {
           </TabsList>
 
           {["all", "hot", "cold", "dead", "unassigned"].map((status) => (
-            <TabsContent key={status} value={status} onValueChange={() => setCurrentPage(1)}>
+            <TabsContent key={status} value={status}>
               <Card>
                 <CardHeader>
                   <CardTitle>
