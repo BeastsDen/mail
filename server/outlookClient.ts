@@ -21,7 +21,7 @@ async function getAccessToken() {
 
   // Try querying by connection ID first
   let response = await fetch(
-    'https://' + hostname + '/api/v2/connection/conn_outlook_01KAVKKN8F6GY6N7XFEX4SWZ93?include_secrets=true',
+    'https://' + hostname + '/api/v2/connection/conn_outlook_01KAVPKYXN08H29C1S39DVK05V?include_secrets=true',
     {
       headers: {
         'Accept': 'application/json',
