@@ -730,6 +730,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to check if email involves sales@hackure.in
+  function isSalesEmail(message: any): boolean {
+    const senderEmail = message.from?.emailAddress?.address || '';
+    const toEmails = message.toRecipients?.map((r: any) => r.emailAddress?.address) || [];
+    const ccEmails = message.ccRecipients?.map((r: any) => r.emailAddress?.address) || [];
+    const bccEmails = message.bccRecipients?.map((r: any) => r.emailAddress?.address) || [];
+    
+    const allRecipients = [...toEmails, ...ccEmails, ...bccEmails];
+    const salesEmail = 'sales@hackure.in';
+    
+    return senderEmail === salesEmail || allRecipients.includes(salesEmail);
+  }
+
   // Email sync and thread management routes
   app.post("/api/emails/sync", isAuthenticated, async (req: any, res) => {
     try {
@@ -744,8 +757,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fetchEmails('sentitems', { top: 100 })
       ]);
 
+      // Filter to only emails from/to sales@hackure.in
+      const filteredInboxMessages = inboxMessages.filter(isSalesEmail);
+      const filteredSentMessages = sentMessages.filter(isSalesEmail);
+
       // Sync received emails
-      for (const message of inboxMessages) {
+      for (const message of filteredInboxMessages) {
         await storage.syncReceivedEmail({
           messageId: message.id,
           conversationId: message.conversationId,
@@ -762,7 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Sync sent emails
-      for (const message of sentMessages) {
+      for (const message of filteredSentMessages) {
         if (message.toRecipients && message.toRecipients.length > 0) {
           await storage.syncSentEmail({
             messageId: message.id,
@@ -780,8 +797,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         message: "Emails synced successfully",
-        inboxCount: inboxMessages.length,
-        sentCount: sentMessages.length
+        inboxCount: filteredInboxMessages.length,
+        sentCount: filteredSentMessages.length
       });
     } catch (error) {
       console.error("Error syncing emails:", error);
@@ -887,8 +904,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fetchEmails('sentitems', { top: 100 })
       ]);
 
+      // Filter to only emails from/to sales@hackure.in
+      const filteredInboxMessages = inboxMessages.filter(isSalesEmail);
+      const filteredSentMessages = sentMessages.filter(isSalesEmail);
+
       // Sync received emails
-      for (const message of inboxMessages) {
+      for (const message of filteredInboxMessages) {
         await storage.syncReceivedEmail({
           messageId: message.id,
           conversationId: message.conversationId,
@@ -905,7 +926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Sync sent emails
-      for (const message of sentMessages) {
+      for (const message of filteredSentMessages) {
         if (message.toRecipients && message.toRecipients.length > 0) {
           await storage.syncSentEmail({
             messageId: message.id,
@@ -921,7 +942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log(`[Auto-sync] Synced ${inboxMessages.length} inbox and ${sentMessages.length} sent emails for ${connectedUserEmail}`);
+      console.log(`[Auto-sync] Synced ${filteredInboxMessages.length} inbox and ${filteredSentMessages.length} sent emails from/to sales@hackure.in for ${connectedUserEmail}`);
     } catch (error) {
       console.error("[Auto-sync] Error:", error instanceof Error ? error.message : String(error));
     }
