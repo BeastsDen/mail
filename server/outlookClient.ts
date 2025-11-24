@@ -124,9 +124,11 @@ export async function fetchEmails(
     orderBy = 'receivedDateTime DESC'
   } = options;
 
-  // Query authenticated user's mailbox
+  // Query sales mailbox directly using CONFIG_EMAIL instead of authenticated user's mailbox
+  const salesEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
+  
   let request = client
-    .api(`/me/mailFolders/${folderName}/messages`)
+    .api(`/users/${salesEmail}/mailFolders/${folderName}/messages`)
     .top(top)
     .skip(skip)
     .orderby(orderBy)
@@ -146,8 +148,10 @@ export async function fetchEmails(
 export async function fetchEmailById(messageId: string): Promise<OutlookMessage> {
   const client = await getOutlookClient();
   
+  const salesEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
+  
   const message = await client
-    .api(`/me/messages/${messageId}`)
+    .api(`/users/${salesEmail}/messages/${messageId}`)
     .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,receivedDateTime,isRead,hasAttachments')
     .get();
 
@@ -160,8 +164,10 @@ export async function fetchEmailById(messageId: string): Promise<OutlookMessage>
 export async function fetchConversationThread(conversationId: string): Promise<OutlookMessage[]> {
   const client = await getOutlookClient();
   
+  const salesEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
+  
   const response = await client
-    .api(`/me/messages`)
+    .api(`/users/${salesEmail}/messages`)
     .filter(`conversationId eq '${conversationId}'`)
     .orderby('receivedDateTime ASC')
     .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,receivedDateTime,isRead,hasAttachments')
@@ -183,20 +189,14 @@ export async function sendEmail(params: {
 }): Promise<void> {
   const client = await getOutlookClient();
   
-  // Use the specified from address or default to authenticated user
-  const fromEmail = params.from || 'sales@hackure.in';
+  // Send from sales email directly
+  const salesEmail = process.env.CONFIG_EMAIL || 'sales@hackure.in';
 
   const message = {
     subject: params.subject,
     body: {
       contentType: 'HTML',
       content: params.body,
-    },
-    from: {
-      emailAddress: {
-        address: fromEmail,
-        name: fromEmail.split('@')[0]
-      }
     },
     toRecipients: params.to.map(email => ({
       emailAddress: { address: email }
@@ -209,8 +209,8 @@ export async function sendEmail(params: {
     })),
   };
 
-  // Send email from authenticated user's mailbox
-  await client.api('/me/sendMail').post({
+  // Send email from sales mailbox directly
+  await client.api(`/users/${salesEmail}/sendMail`).post({
     message,
     saveToSentItems: true,
   });
