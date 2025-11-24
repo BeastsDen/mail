@@ -25,6 +25,59 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ReceivedEmail } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 
+const LeadStatusSelector = ({ email, onStatusChange }: { email: ReceivedEmail; onStatusChange: (status: string) => void }) => {
+  const getLeadIcon = (leadStatus: string) => {
+    switch (leadStatus) {
+      case "hot":
+        return <Flame className="h-4 w-4 text-destructive" />;
+      case "cold":
+        return <Snowflake className="h-4 w-4 text-blue-500" />;
+      case "dead":
+        return <XIcon className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Select
+      defaultValue="unassigned"
+      onValueChange={onStatusChange}
+    >
+      <SelectTrigger
+        className="w-32"
+        data-testid={`select-lead-${email.id}`}
+      >
+        <div className="flex items-center gap-2">
+          {getLeadIcon("unassigned")}
+          <SelectValue />
+        </div>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="hot">
+          <div className="flex items-center gap-2">
+            <Flame className="h-4 w-4" />
+            Hot
+          </div>
+        </SelectItem>
+        <SelectItem value="cold">
+          <div className="flex items-center gap-2">
+            <Snowflake className="h-4 w-4" />
+            Cold
+          </div>
+        </SelectItem>
+        <SelectItem value="dead">
+          <div className="flex items-center gap-2">
+            <XIcon className="h-4 w-4" />
+            Dead
+          </div>
+        </SelectItem>
+        <SelectItem value="unassigned">Unassigned</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+};
+
 export default function Inbox() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -37,10 +90,33 @@ export default function Inbox() {
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  const allEmails = data?.emails || [];
-  const totalEmails = data?.total || 0;
-  const emails = allEmails.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(totalEmails / itemsPerPage);
+  const updateEmailLeadStatusMutation = useMutation({
+    mutationFn: async ({
+      emailId,
+      leadStatus,
+    }: {
+      emailId: string;
+      leadStatus: string;
+    }) => {
+      return await apiRequest("PATCH", `/api/emails/${emailId}/lead-status`, {
+        leadStatus,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/emails/received"] });
+      toast({
+        title: "Success",
+        description: "Lead status updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update lead status",
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -55,6 +131,11 @@ export default function Inbox() {
       return;
     }
   }, [isAuthenticated, authLoading, toast]);
+
+  const allEmails = data?.emails || [];
+  const totalEmails = data?.total || 0;
+  const emails = allEmails.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(totalEmails / itemsPerPage);
 
   if (isLoading || authLoading) {
     return (
@@ -76,49 +157,6 @@ export default function Inbox() {
       </Badge>
     );
   };
-
-  const getLeadIcon = (leadStatus: string) => {
-    switch (leadStatus) {
-      case "hot":
-        return <Flame className="h-4 w-4 text-destructive" />;
-      case "cold":
-        return <Snowflake className="h-4 w-4 text-blue-500" />;
-      case "dead":
-        return <XIcon className="h-4 w-4 text-muted-foreground" />;
-      default:
-        return null;
-    }
-  };
-
-  const updateEmailLeadStatusMutation = useMutation({
-    mutationFn: async ({
-      emailId,
-      leadStatus,
-    }: {
-      emailId: string;
-      leadStatus: string;
-    }) => {
-      // For received emails, we update the corresponding sent email's thread
-      // Or create a marker on the received email itself
-      return await apiRequest("PATCH", `/api/emails/${emailId}/lead-status`, {
-        leadStatus,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/emails/received"] });
-      toast({
-        title: "Success",
-        description: "Lead status updated successfully",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update lead status",
-        variant: "destructive",
-      });
-    },
-  });
 
   return (
     <div className="space-y-6 p-6">
@@ -168,46 +206,15 @@ export default function Inbox() {
                       </TableCell>
                       <TableCell>{getReadBadge(email.isRead)}</TableCell>
                       <TableCell>
-                        <Select
-                          defaultValue="unassigned"
-                          onValueChange={(leadStatus) =>
+                        <LeadStatusSelector
+                          email={email}
+                          onStatusChange={(leadStatus) =>
                             updateEmailLeadStatusMutation.mutate({
                               emailId: email.id,
                               leadStatus,
                             })
                           }
-                        >
-                          <SelectTrigger
-                            className="w-32"
-                            data-testid={`select-lead-${email.id}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {getLeadIcon("unassigned")}
-                              <SelectValue />
-                            </div>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="hot">
-                              <div className="flex items-center gap-2">
-                                <Flame className="h-4 w-4" />
-                                Hot
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="cold">
-                              <div className="flex items-center gap-2">
-                                <Snowflake className="h-4 w-4" />
-                                Cold
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="dead">
-                              <div className="flex items-center gap-2">
-                                <XIcon className="h-4 w-4" />
-                                Dead
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        />
                       </TableCell>
                       <TableCell className="text-sm">
                         {email.receivedAt
