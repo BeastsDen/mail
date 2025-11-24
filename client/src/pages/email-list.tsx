@@ -331,9 +331,18 @@ export default function EmailList() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-sm text-muted-foreground mb-2">Message</p>
-                <div className="bg-muted p-4 rounded-md max-h-[300px] overflow-y-auto">
+                <div className="bg-muted p-4 rounded-md max-h-[400px] overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
                   {selectedEmail.body ? (
-                    <div className="text-sm whitespace-pre-wrap">{selectedEmail.body}</div>
+                    selectedEmail.body.startsWith("<") ? (
+                      <div 
+                        dangerouslySetInnerHTML={{ 
+                          __html: selectedEmail.body.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") 
+                        }} 
+                        className="[&_img]:max-w-full [&_img]:h-auto [&_a]:text-blue-600 [&_a]:underline dark:[&_a]:text-blue-400 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:bg-muted"
+                      />
+                    ) : (
+                      <div className="text-sm whitespace-pre-wrap">{selectedEmail.body}</div>
+                    )
                   ) : (
                     <p className="text-sm text-muted-foreground italic">No message body available</p>
                   )}
