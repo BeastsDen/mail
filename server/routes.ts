@@ -581,8 +581,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No contacts in dataset" });
       }
 
-      // Get Outlook client
-      const outlookClient = await getOutlookClient();
+      // Import sendEmail function
+      const { sendEmail } = await import("./outlookClient");
 
       let sentCount = 0;
       const errors: any[] = [];
@@ -609,28 +609,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             body = body.replace(regex, String(value));
           });
 
-          // Send email via Outlook
-          const message = {
+          // Send email via Outlook using the correct endpoint
+          await sendEmail({
+            to: [contact.email],
             subject,
-            body: {
-              contentType: "Text",
-              content: body,
-            },
-            toRecipients: [
-              {
-                emailAddress: {
-                  address: contact.email,
-                },
-              },
-            ],
-          };
-
-          const sentMessage = await outlookClient
-            .api("/me/sendMail")
-            .post({
-              message,
-              saveToSentItems: true,
-            });
+            body,
+          });
 
           // Store sent email in database
           await storage.createSentEmail({
