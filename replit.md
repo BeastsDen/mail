@@ -8,6 +8,19 @@ The platform supports two user roles:
 - **Admin**: Full access to user management, templates, datasets, email tracking, and system-wide analytics
 - **Sales**: Access to send emails, view their own analytics, and manage their campaigns
 
+## Recent Changes
+
+### Email Reply and Forward Functionality (November 25, 2025)
+- Added Reply and Forward buttons to all email viewing dialogs (inbox, sent emails, email threads)
+- Created reusable ComposeDialog component supporting compose/reply/forward modes with automatic form state management
+- Implemented backend API endpoint `/api/emails/send-single` for sending individual emails via Microsoft Graph API
+- Features include:
+  - Auto-populated recipient fields for replies (handles both received and sent emails)
+  - Subject line prefixing with "Re:" or "Fwd:"
+  - HTML-to-plain-text conversion for readable email quotes
+  - Original message context preservation in replies and forwards
+  - Form state reset when switching between different emails
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
