@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Upload, Trash2, Download, Eye, Database, X } from "lucide-react";
+import { Plus, Upload, Trash2, Download, Eye, Database, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -35,6 +35,7 @@ export default function Datasets() {
   const [datasetName, setDatasetName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [viewDatasetId, setViewDatasetId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: datasets, isLoading } = useQuery<Dataset[]>({
@@ -45,6 +46,16 @@ export default function Datasets() {
   const { data: datasetContacts = [], isLoading: contactsLoading } = useQuery<any[]>({
     queryKey: ["/api/datasets", viewDatasetId, "contacts"],
     enabled: !!viewDatasetId,
+  });
+
+  // Filter contacts based on search query
+  const filteredContacts = datasetContacts.filter((contact) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      (contact.name && contact.name.toLowerCase().includes(query)) ||
+      (contact.email && contact.email.toLowerCase().includes(query)) ||
+      (contact.company && contact.company.toLowerCase().includes(query))
+    );
   });
 
   useEffect(() => {
@@ -270,7 +281,12 @@ export default function Datasets() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!viewDatasetId} onOpenChange={(open) => !open && setViewDatasetId(null)}>
+      <Dialog open={!!viewDatasetId} onOpenChange={(open) => {
+        if (!open) {
+          setViewDatasetId(null);
+          setSearchQuery("");
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
@@ -278,37 +294,66 @@ export default function Datasets() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setViewDatasetId(null)}
+                onClick={() => {
+                  setViewDatasetId(null);
+                  setSearchQuery("");
+                }}
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by email, name, or company..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-contacts"
+              />
+            </div>
+
+            {/* Results Count */}
+            {!contactsLoading && datasetContacts.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredContacts.length} of {datasetContacts.length} contacts
+              </p>
+            )}
+
+            {/* Table */}
             {contactsLoading ? (
               <div className="flex justify-center py-8">
                 <Skeleton className="h-8 w-full" />
               </div>
             ) : datasetContacts && datasetContacts.length > 0 ? (
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Company</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {datasetContacts.map((contact: any, index: number) => (
-                      <TableRow key={index}>
-                        <TableCell>{contact.name || "-"}</TableCell>
-                        <TableCell>{contact.email}</TableCell>
-                        <TableCell>{contact.company || "-"}</TableCell>
+                {filteredContacts.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Company</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredContacts.map((contact: any, index: number) => (
+                        <TableRow key={index} data-testid={`row-contact-${index}`}>
+                          <TableCell>{contact.name || "-"}</TableCell>
+                          <TableCell>{contact.email}</TableCell>
+                          <TableCell>{contact.company || "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No contacts match your search</p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8">
