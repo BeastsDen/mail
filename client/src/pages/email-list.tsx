@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon, X, Reply, Forward } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, X, Reply, Forward, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +40,7 @@ export default function EmailList() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [composeDialogOpen, setComposeDialogOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose");
   const [composeEmail, setComposeEmail] = useState<SentEmail | null>(null);
@@ -150,8 +152,23 @@ export default function EmailList() {
 
   const filterByLeadStatus = (status: string) => {
     if (!emails) return [];
-    if (status === "all") return emails;
-    return emails.filter((email) => email.leadStatus === status);
+    let filtered = emails;
+    
+    if (status !== "all") {
+      filtered = filtered.filter((email) => email.leadStatus === status);
+    }
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((email) => {
+        const recipientMatch = email.recipientEmail?.toLowerCase().includes(query);
+        const subjectMatch = email.subject?.toLowerCase().includes(query);
+        const bodyMatch = email.body?.toLowerCase().includes(query);
+        return recipientMatch || subjectMatch || bodyMatch;
+      });
+    }
+    
+    return filtered;
   };
 
   return (
@@ -161,6 +178,18 @@ export default function EmailList() {
         <p className="text-muted-foreground">
           View and manage sent emails and lead categorization
         </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search by email, subject, or content..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+          data-testid="input-search-emails"
+        />
       </div>
 
       <Tabs defaultValue="all" className="space-y-4">

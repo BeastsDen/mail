@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon, ChevronRight, ChevronLeft, Reply, Forward } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, ChevronRight, ChevronLeft, Reply, Forward, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,7 @@ export default function EmailThreads() {
   const [threadMessages, setThreadMessages] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [currentTab, setCurrentTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const itemsPerPage = 20;
   const [composeDialogOpen, setComposeDialogOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose");
@@ -120,18 +122,31 @@ export default function EmailThreads() {
     if (!threads) return [];
     
     // Filter to only show threads with multiple messages (actual conversations)
-    const multiMessageThreads = threads.filter((thread) => thread.messageCount > 1);
+    let multiMessageThreads = threads.filter((thread) => thread.messageCount > 1);
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      multiMessageThreads = multiMessageThreads.filter((thread) => {
+        const participantMatch = thread.participantEmails?.some((email: string) => email.toLowerCase().includes(query));
+        const subjectMatch = thread.subject?.toLowerCase().includes(query);
+        return participantMatch || subjectMatch;
+      });
+    }
+    
+    // Apply status filter
+    if (status !== "all" && status !== "unassigned") {
+      multiMessageThreads = multiMessageThreads.filter((thread) => thread.leadStatus === status);
+    } else if (status === "unassigned") {
+      multiMessageThreads = multiMessageThreads.filter((thread) => !thread.leadStatus || thread.leadStatus === "");
+    }
     
     // Apply pagination on client-side for now
     const start = (currentPage - 1) * itemsPerPage;
     const end = start + itemsPerPage;
     const paginatedThreads = multiMessageThreads.slice(start, end);
     
-    if (status === "all") return paginatedThreads;
-    if (status === "unassigned") {
-      return paginatedThreads.filter((thread) => !thread.leadStatus || thread.leadStatus === "");
-    }
-    return paginatedThreads.filter((thread) => thread.leadStatus === status);
+    return paginatedThreads;
   };
 
   const getTotalForStatus = (status: string) => {
@@ -156,6 +171,21 @@ export default function EmailThreads() {
           <p className="text-muted-foreground">
             View and manage email conversations from sales@hackure.in (auto-syncs every minute)
           </p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by participant or subject..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-9"
+            data-testid="input-search-threads"
+          />
         </div>
 
         <Tabs defaultValue="all" className="space-y-4">

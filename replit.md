@@ -10,6 +10,16 @@ The platform supports two user roles:
 
 ## Recent Changes
 
+### Global Search Features Across Email & Dataset Management (November 25, 2025)
+- Added comprehensive search functionality across all major pages:
+  - **Inbox Search**: Find received emails by sender email, subject, or content
+  - **Sent Emails Search**: Find sent emails by recipient email, subject, or content
+  - **Email Threads Search**: Find conversation threads by participant email or subject
+  - **Dataset Search**: Find contacts by email, name, or company name with live results counter
+- All searches are case-insensitive and support partial matching
+- Real-time filtering with instant results as you type
+- Search automatically resets pagination and displays result counts
+
 ### Email Reply and Forward Functionality (November 25, 2025)
 - Added Reply and Forward buttons to all email viewing dialogs (inbox, sent emails, email threads)
 - Created reusable ComposeDialog component supporting compose/reply/forward modes with automatic form state management
@@ -20,6 +30,12 @@ The platform supports two user roles:
   - HTML-to-plain-text conversion for readable email quotes
   - Original message context preservation in replies and forwards
   - Form state reset when switching between different emails
+
+### Enhanced Dataset Management (November 25, 2025)
+- Improved XLSX/CSV file parsing with proper support for both file formats
+- Normalized field name handling (case-insensitive matching for email, name, company)
+- Added dataset view dialog with contact details display
+- Added `/api/datasets/:id/contacts` endpoint for retrieving parsed contact data
 
 ## User Preferences
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Inbox as InboxIcon, ChevronLeft, ChevronRight, Flame, Snowflake, X as XIcon, Mail as MailIcon, X, Reply, Forward } from "lucide-react";
+import { Inbox as InboxIcon, ChevronLeft, ChevronRight, Flame, Snowflake, X as XIcon, Mail as MailIcon, X, Reply, Forward, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -93,6 +94,7 @@ export default function Inbox() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedEmail, setSelectedEmail] = useState<ReceivedEmail | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const itemsPerPage = 20;
   const [composeDialogOpen, setComposeDialogOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose");
@@ -150,8 +152,20 @@ export default function Inbox() {
   const totalEmails = data?.total || 0;
 
   const getFilteredEmails = () => {
-    if (filterStatus === "all") return allEmails;
-    return allEmails.filter((e) => e.leadStatus === filterStatus);
+    let filtered = allEmails;
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((e) => {
+        const senderMatch = e.senderEmail?.toLowerCase().includes(query);
+        const subjectMatch = e.subject?.toLowerCase().includes(query);
+        const bodyMatch = e.body?.toLowerCase().includes(query);
+        return senderMatch || subjectMatch || bodyMatch;
+      });
+    }
+    
+    return filtered;
   };
 
   const filteredEmails = getFilteredEmails();
@@ -186,6 +200,21 @@ export default function Inbox() {
         <p className="text-muted-foreground">
           View received emails and replies (auto-refreshes every 10 seconds)
         </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search by email, subject, or content..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="pl-9"
+          data-testid="input-search-inbox"
+        />
       </div>
 
       <Tabs value={filterStatus} onValueChange={(status) => {
@@ -352,28 +381,6 @@ export default function Inbox() {
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Subject</p>
                 <p className="font-semibold">{selectedEmail.subject}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Lead Status</p>
-                <Select
-                  defaultValue={selectedEmail.leadStatus || "unassigned"}
-                  onValueChange={(leadStatus) =>
-                    updateEmailLeadStatusMutation.mutate({
-                      emailId: selectedEmail.id,
-                      leadStatus,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hot">🔥 Hot</SelectItem>
-                    <SelectItem value="cold">❄️ Cold</SelectItem>
-                    <SelectItem value="dead">✕ Dead</SelectItem>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="flex gap-2">
                 <Button
