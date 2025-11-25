@@ -406,11 +406,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Missing file or name" });
       }
 
-      // Parse Excel/CSV file
-      const workbook = XLSX.read(file.buffer, { type: "buffer" });
+      let data: any[] = [];
+
+      // Detect file type from MIME type or extension
+      const isCsv = file.mimetype === "text/csv" || file.originalname?.endsWith(".csv");
+      
+      // Parse file using XLSX (works for both CSV and XLSX)
+      const workbook = XLSX.read(file.buffer, { 
+        type: "buffer",
+        // For CSV files, tell XLSX to treat it as CSV
+        raw: false
+      });
+      
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        return res.status(400).json({ message: "File contains no sheets" });
+      }
+      
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet);
+      data = XLSX.utils.sheet_to_json(worksheet, { 
+        defval: "" // Default value for empty cells
+      });
+
+      if (data.length === 0) {
+        return res.status(400).json({ message: "File contains no data" });
+      }
 
       // Create dataset
       const dataset = await storage.createDataset({
@@ -420,14 +440,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "active",
       });
 
-      // Create contacts from parsed data
-      const contacts = data.map((row: any) => ({
-        datasetId: dataset.id,
-        name: row.name || row.Name || null,
-        email: row.email || row.Email || "",
-        company: row.company || row.Company || null,
-        customFields: row,
-      }));
+      // Create contacts from parsed data - normalize field names
+      const contacts = data.map((row: any) => {
+        // Normalize field names to lowercase for case-insensitive matching
+        const normalizedRow: any = {};
+        Object.keys(row).forEach((key) => {
+          normalizedRow[key.toLowerCase()] = row[key];
+        });
+
+        return {
+          datasetId: dataset.id,
+          name: normalizedRow.name || null,
+          email: normalizedRow.email || "",
+          company: normalizedRow.company || normalizedRow.companyname || null,
+          customFields: row,
+        };
+      });
 
       if (contacts.length > 0) {
         await storage.createDatasetContacts(contacts);
@@ -438,13 +466,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "dataset_uploaded",
         entityType: "dataset",
         entityId: dataset.id,
-        details: { name, recordsCount: data.length },
+        details: { name, recordsCount: data.length, fileType: isCsv ? "csv" : "xlsx" },
       });
 
       res.json(dataset);
     } catch (error) {
       console.error("Error uploading dataset:", error);
       res.status(500).json({ message: "Failed to upload dataset" });
+    }
+  });
+
+  app.get("/api/datasets/:id/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const dataset = await storage.getDataset(id);
+      if (!dataset) {
+        return res.status(404).json({ message: "Dataset not found" });
+      }
+
+      const contacts = await storage.getDatasetContacts(id);
+      res.json(contacts);
+    } catch (error) {
+      console.error("Error fetching dataset contacts:", error);
+      res.status(500).json({ message: "Failed to fetch dataset contacts" });
     }
   });
 

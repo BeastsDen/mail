@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Upload, Trash2, Download, Eye, Database } from "lucide-react";
+import { Plus, Upload, Trash2, Download, Eye, Database, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -34,11 +34,17 @@ export default function Datasets() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [datasetName, setDatasetName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [viewDatasetId, setViewDatasetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: datasets, isLoading } = useQuery<Dataset[]>({
     queryKey: ["/api/datasets"],
     enabled: isAuthenticated && !authLoading,
+  });
+
+  const { data: datasetContacts = [], isLoading: contactsLoading } = useQuery<any[]>({
+    queryKey: ["/api/datasets", viewDatasetId, "contacts"],
+    enabled: !!viewDatasetId,
   });
 
   useEffect(() => {
@@ -227,6 +233,14 @@ export default function Datasets() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => setViewDatasetId(dataset.id)}
+                          data-testid={`button-view-${dataset.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => deleteMutation.mutate(dataset.id)}
                           data-testid={`button-delete-${dataset.id}`}
                         >
@@ -255,6 +269,55 @@ export default function Datasets() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!viewDatasetId} onOpenChange={(open) => !open && setViewDatasetId(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Dataset Details</DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setViewDatasetId(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="space-y-4">
+            {contactsLoading ? (
+              <div className="flex justify-center py-8">
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : datasetContacts && datasetContacts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Company</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {datasetContacts.map((contact: any, index: number) => (
+                      <TableRow key={index}>
+                        <TableCell>{contact.name || "-"}</TableCell>
+                        <TableCell>{contact.email}</TableCell>
+                        <TableCell>{contact.company || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No contacts found</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
         <DialogContent>
