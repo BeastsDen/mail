@@ -79,10 +79,11 @@ export default function SendEmail() {
 
   const sendEmailMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/emails/send-bulk", {
+      const response = await apiRequest("POST", "/api/emails/send-bulk", {
         datasetId: selectedDatasetId,
         templateId: selectedTemplateId,
       });
+      return response.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales/stats"] });
