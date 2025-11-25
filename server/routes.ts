@@ -630,6 +630,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/emails/send-single", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { to, subject, body, mode, originalEmailId } = req.body;
+
+      if (!to || !subject || !body) {
+        return res.status(400).json({ message: "Missing required fields: to, subject, body" });
+      }
+
+      const { sendEmail } = await import("./outlookClient");
+      
+      await sendEmail({
+        to: [to],
+        subject,
+        body,
+      });
+
+      await storage.createSentEmail({
+        sentBy: userId,
+        recipientEmail: to,
+        subject,
+        body,
+        status: "sent",
+        leadStatus: "unassigned",
+      });
+
+      await storage.createActivityLog({
+        userId,
+        action: mode === "reply" ? "email_replied" : mode === "forward" ? "email_forwarded" : "email_sent",
+        entityType: "email",
+        details: {
+          to,
+          subject,
+          mode,
+          originalEmailId,
+        },
+      });
+
+      res.json({ message: "Email sent successfully" });
+    } catch (error) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
   app.patch("/api/emails/:emailId/lead-status", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;

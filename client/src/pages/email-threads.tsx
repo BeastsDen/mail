@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon, ChevronRight, ChevronLeft } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, ChevronRight, ChevronLeft, Reply, Forward } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
+import { ComposeDialog } from "@/components/compose-dialog";
 
 export default function EmailThreads() {
   const { toast } = useToast();
@@ -35,6 +36,9 @@ export default function EmailThreads() {
   const [currentPage, setCurrentPage] = useState(1);
   const [currentTab, setCurrentTab] = useState("all");
   const itemsPerPage = 20;
+  const [composeDialogOpen, setComposeDialogOpen] = useState(false);
+  const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose");
+  const [composeEmail, setComposeEmail] = useState<any>(null);
 
   // Reset to page 1 when changing tabs
   useEffect(() => {
@@ -350,6 +354,34 @@ export default function EmailThreads() {
                       className="prose prose-sm max-w-none"
                       dangerouslySetInnerHTML={{ __html: message.body || message.bodyPreview || '' }}
                     />
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setComposeMode("reply");
+                          setComposeEmail(message);
+                          setComposeDialogOpen(true);
+                        }}
+                        data-testid="button-reply"
+                      >
+                        <Reply className="h-3 w-3 mr-1" />
+                        Reply
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setComposeMode("forward");
+                          setComposeEmail(message);
+                          setComposeDialogOpen(true);
+                        }}
+                        data-testid="button-forward"
+                      >
+                        <Forward className="h-3 w-3 mr-1" />
+                        Forward
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -357,6 +389,21 @@ export default function EmailThreads() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      <ComposeDialog
+        open={composeDialogOpen}
+        onOpenChange={setComposeDialogOpen}
+        mode={composeMode}
+        originalEmail={composeEmail ? {
+          id: composeEmail.id,
+          senderEmail: composeEmail.senderEmail || composeEmail.recipientEmail,
+          recipientEmail: composeEmail.recipientEmail,
+          subject: composeEmail.subject || selectedThread?.subject || "",
+          body: composeEmail.body || composeEmail.bodyPreview || "",
+          senderName: composeEmail.senderName,
+          recipientName: composeEmail.recipientName,
+        } : undefined}
+      />
     </>
   );
 }

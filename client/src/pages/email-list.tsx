@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Mail, Flame, Snowflake, X as XIcon, X } from "lucide-react";
+import { Mail, Flame, Snowflake, X as XIcon, X, Reply, Forward } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -33,11 +33,15 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SentEmail } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { ComposeDialog } from "@/components/compose-dialog";
 
 export default function EmailList() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
+  const [composeDialogOpen, setComposeDialogOpen] = useState(false);
+  const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose");
+  const [composeEmail, setComposeEmail] = useState<SentEmail | null>(null);
 
   const { data: emails, isLoading } = useQuery<SentEmail[]>({
     queryKey: ["/api/emails"],
@@ -329,6 +333,32 @@ export default function EmailList() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setComposeMode("reply");
+                    setComposeEmail(selectedEmail);
+                    setComposeDialogOpen(true);
+                  }}
+                  data-testid="button-reply"
+                >
+                  <Reply className="h-4 w-4 mr-2" />
+                  Reply
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setComposeMode("forward");
+                    setComposeEmail(selectedEmail);
+                    setComposeDialogOpen(true);
+                  }}
+                  data-testid="button-forward"
+                >
+                  <Forward className="h-4 w-4 mr-2" />
+                  Forward
+                </Button>
+              </div>
               <div className="border-t pt-4 flex-1 overflow-hidden flex flex-col">
                 <p className="text-sm text-muted-foreground mb-2">Message</p>
                 <div className="bg-muted p-4 rounded-md overflow-y-auto flex-1 prose prose-sm dark:prose-invert max-w-none">
@@ -355,6 +385,19 @@ export default function EmailList() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ComposeDialog
+        open={composeDialogOpen}
+        onOpenChange={setComposeDialogOpen}
+        mode={composeMode}
+        originalEmail={composeEmail ? {
+          id: composeEmail.id,
+          recipientEmail: composeEmail.recipientEmail,
+          subject: composeEmail.subject,
+          body: composeEmail.body,
+          recipientName: composeEmail.recipientName || undefined,
+        } : undefined}
+      />
     </div>
   );
 }
