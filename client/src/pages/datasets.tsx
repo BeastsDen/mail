@@ -45,6 +45,15 @@ export default function Datasets() {
 
   const { data: datasetContacts = [], isLoading: contactsLoading } = useQuery<any[]>({
     queryKey: ["/api/datasets", viewDatasetId, "contacts"],
+    queryFn: async () => {
+      const response = await fetch(`/api/datasets/${viewDatasetId}/contacts`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch dataset contacts");
+      }
+      return response.json();
+    },
     enabled: !!viewDatasetId,
   });
 
